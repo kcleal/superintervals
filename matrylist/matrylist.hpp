@@ -55,7 +55,6 @@ class MatryList {
             }
         }
         intervals.emplace_back() = {start, end};
-//        ends.emplace_back(end);
         data.emplace_back(value);
     }
 
@@ -379,7 +378,7 @@ class MatryListE {
         jdx = idx;
         while (i < n_intervals) {
             if (eytz[i] > x) {
-                // weirdly, runs faster when this branch is included probably due to better branch prediction
+                // weirdly this runs faster when this branch is included, better branch prediction?
                 if (best_idx == n_intervals || eytz[i] <= eytz[best_idx]) {
                     best_idx = i;  // best candidate closer to x
                 }
