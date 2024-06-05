@@ -2,6 +2,7 @@
 #include "matrylist.hpp"
 #include <iostream>
 #include <vector>
+#include <cassert>
 
 
 void print_vec(std::vector<size_t>& a, MatryList<int, int>& itv) {
@@ -27,7 +28,7 @@ int main(int argc, char *argv[]) {
     itv.add(15, 16, -1);
     itv.add(25, 29, -1);
     itv.index();
-    itv.search_overlap(17, 30, a);
+    itv.findOverlaps(17, 30, a);
     assert (a[0] == 4); assert (a[1] == 0);
     itv.clear();
 
@@ -46,7 +47,7 @@ int main(int argc, char *argv[]) {
     itv.add(34, 36, -1);
     itv.add(38, 40, -1);
     itv.index();
-    itv.search_overlap(17, 21, a); //print_vec(a, itv);
+    itv.findOverlaps(17, 21, a); //print_vec(a, itv);
     assert (a[0] == 7); assert (a[1] == 3);
     itv.clear();
 //    return 0;
@@ -70,7 +71,7 @@ int main(int argc, char *argv[]) {
     itv.add(2384, 3384, -1);
     itv.add(2515, 3515, -1);
     itv.index();
-    itv.search_overlap(1377, 2377, a);
+    itv.findOverlaps(1377, 2377, a);
     itv.clear();
 //    print_vec(a, itv);
     assert (a.back() == 0 && a.size() == 12);
@@ -88,7 +89,7 @@ int main(int argc, char *argv[]) {
     itv.add(49, 60, 6);
     itv.add(58, 59, 7);
     itv.index();
-    itv.search_overlap(1, 5, a);
+    itv.findOverlaps(1, 5, a);
     itv.clear();
     assert (a.back() == 0 && a.size() == 3);
 
@@ -98,7 +99,7 @@ int main(int argc, char *argv[]) {
     itv.add(9, 10, 7);
     itv.add(11, 12, 7);
     itv.index();
-    itv.search_overlap(2, 25, a);
+    itv.findOverlaps(2, 25, a);
     itv.clear();
     assert (a.back() == 0 && a.size() == 5);
 
@@ -107,7 +108,7 @@ int main(int argc, char *argv[]) {
     itv.add(40, 50, 6);
     itv.add(60, 70, 7);
     itv.index();
-    itv.search_overlap(55, 65, a);
+    itv.findOverlaps(55, 65, a);
 //    int count = itv.countOverlapping(55, 65);
     itv.clear();
 //    print_vec(a, itv);
@@ -118,7 +119,7 @@ int main(int argc, char *argv[]) {
     itv.add(60, 700, 2);
     itv.add(65, 80, 3);
     itv.index();
-    itv.search_overlap(100, 200, a);
+    itv.findOverlaps(100, 200, a);
     itv.clear();
     assert (a.back() == 0 && a.size() == 3);
 
@@ -127,7 +128,7 @@ int main(int argc, char *argv[]) {
     itv.add(20, 25, 5);
     itv.add(22, 24, 6);
     itv.index();
-    itv.search_overlap(31, 32, a);
+    itv.findOverlaps(31, 32, a);
     itv.clear();
     assert (a.back() == 0 && a.size() == 1);
 //    print_vec(a, itv);
@@ -138,10 +139,10 @@ int main(int argc, char *argv[]) {
     itv.add(10, 31, 5);
     itv.add(31, 32, 5);
     itv.index();
-    itv.search_overlap(31, 32, a); assert (a.back() == 0 && a.size() == 3);
-    itv.search_overlap(10, 11, a); assert (a.back() == 0 && a.size() == 2);
-    itv.search_overlap(8, 40, a); assert (a.back() == 0 && a.size() == 3);
-    itv.search_overlap(4, 7, a); assert (a.back() == 0 && a.size() == 3);
+    itv.findOverlaps(31, 32, a); assert (a.back() == 0 && a.size() == 3);
+    itv.findOverlaps(10, 11, a); assert (a.back() == 0 && a.size() == 2);
+    itv.findOverlaps(8, 40, a); assert (a.back() == 0 && a.size() == 3);
+    itv.findOverlaps(4, 7, a); assert (a.back() == 0 && a.size() == 3);
     itv.clear();
 //    print_vec(a, itv);
 
@@ -153,9 +154,9 @@ int main(int argc, char *argv[]) {
     itv.add(40, 400, 4);
     itv.add(40, 400, 4);
     itv.index();
-    itv.search_overlap(38, 41, a); assert (a.back() == 0 && a.size() == 6);
-    itv.search_overlap(41, 42, a); assert (a.back() == 4 && a.size() == 3);
-    itv.search_overlap(339, 410, a); assert (a.back() == 5 && a.size() == 2);
+    itv.findOverlaps(38, 41, a); assert (a.back() == 0 && a.size() == 6);
+    itv.findOverlaps(41, 42, a); assert (a.back() == 4 && a.size() == 3);
+    itv.findOverlaps(339, 410, a); assert (a.back() == 5 && a.size() == 2);
     itv.clear();
 //    print_vec(a, itv);
 
@@ -172,7 +173,7 @@ int main(int argc, char *argv[]) {
     itv.add(130, 140, 10);
     itv.add(150, 250, 11);
     itv.index();
-    itv.search_overlap(95, 105, a); assert (a.front() == 8 && a.size() == 5);
+    itv.findOverlaps(95, 105, a); assert (a.front() == 8 && a.size() == 5);
     itv.clear();
 
     itv.add(1, 100, 7);
@@ -182,7 +183,7 @@ int main(int argc, char *argv[]) {
     itv.add(50, 60, 11);
     itv.add(100, 200, 11);
     itv.index();
-    itv.search_overlap(20, 90, a); assert (a.front() == 4 && a.size() == 4);
+    itv.findOverlaps(20, 90, a); assert (a.front() == 4 && a.size() == 4);
     itv.clear();
 //    print_vec(a, itv);
 
@@ -191,7 +192,7 @@ int main(int argc, char *argv[]) {
     itv.add(110, 210, 9);
     itv.add(130, 140, 10);
     itv.index();
-    itv.search_overlap(90, 190, a); //assert (a.front() == 5 && a.size() == 4);
+    itv.findOverlaps(90, 190, a); //assert (a.front() == 5 && a.size() == 4);
     itv.clear();
 
 //    print_vec(a, itv);
