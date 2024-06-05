@@ -8,7 +8,7 @@ ext_modules = [
 ]
 
 setup(
-    version='0.1.0',
+    version='0.1.1',
     name='matrylist',
     description="Rapid interval intersections",
     author="Kez Cleal",
