@@ -1,10 +1,10 @@
 
-#include "sintersect.hpp"
+#include "matrylist.hpp"
 #include <iostream>
 #include <vector>
 
 
-void print_vec(std::vector<size_t>& a, SIList<int, int>& itv) {
+void print_vec(std::vector<size_t>& a, MatryList<int, int>& itv) {
     std::cout << " Found:\n";
     for (auto item : a) {
         std::cout << item << " - " << itv.intervals[item].start << " " << itv.intervals[item].end << std::endl;
@@ -17,9 +17,9 @@ int main(int argc, char *argv[]) {
     std::vector<size_t> a;
     a.reserve(1000000);
 
-    std::cout << "\n SIntersect \n";
-    SIList<int, int> itv;
-    itv = SIList<int, int>();
+    std::cout << "\n MatryList tests \n";
+    MatryList<int, int> itv;
+    itv = MatryList<int, int>();
 
     itv.add(10, 20, -1);
     itv.add(11, 12, -1);
@@ -46,9 +46,10 @@ int main(int argc, char *argv[]) {
     itv.add(34, 36, -1);
     itv.add(38, 40, -1);
     itv.index();
-    itv.search_overlap(17, 21, a); print_vec(a, itv);
+    itv.search_overlap(17, 21, a); //print_vec(a, itv);
     assert (a[0] == 7); assert (a[1] == 3);
     itv.clear();
+//    return 0;
 
     itv.add(0, 250000000, -1);
     itv.add(55, 1055, -1);
@@ -71,8 +72,9 @@ int main(int argc, char *argv[]) {
     itv.index();
     itv.search_overlap(1377, 2377, a);
     itv.clear();
-    print_vec(a, itv);
+//    print_vec(a, itv);
     assert (a.back() == 0 && a.size() == 12);
+//    return 0;
 
     itv.add(0, 400, 0);
     itv.add(2, 10, 0);

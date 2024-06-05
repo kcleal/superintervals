@@ -9,5 +9,5 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "matrylist"
 version = "0.1.0"
-description = "Interval intersection for sorted query and target intervals"
+description = "Rapid interval intersections"
 authors = [{name = "Kez Cleal", email = "clealk@cardiff.ac.uk"}]

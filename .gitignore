@@ -1,0 +1,4 @@
+/test/run-cpp-libs
+/test/run-cpp-libs.dSYM/
+/test/run_tests.dSYM/
+/test/run-tests

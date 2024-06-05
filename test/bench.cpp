@@ -1,7 +1,7 @@
 
 #include "IITree.hpp"
 #include "IntervalTree.h"
-#include "sintersect.hpp"
+#include "matrylist.hpp"
 
 
 #include <chrono>
@@ -80,7 +80,7 @@ void load_intervals(const std::string& intervals_file,
 }
 
 
-void print_vec(std::vector<size_t>& a, SIList<int, int>& itv) {
+void print_vec(std::vector<size_t>& a, MatryList<int, int>& itv) {
     std::cout << " Found:\n";
     for (auto item : a) {
         std::cout << item << " - " << itv.intervals[item].start << " " << itv.intervals[item].end << std::endl;
@@ -97,10 +97,10 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     high_resolution_clock::time_point t0, t1;
     std::vector<size_t> a, b;
 
-    std::cout << "\n SIntersect \n";
-    SIList<int, int> itv;
+    std::cout << "\n MatryList \n";
+    MatryList<int, int> itv;
     t0 = high_resolution_clock::now();
-    itv = SIList<int, int>();
+    itv = MatryList<int, int>();
     index = 0;
     found = 0;
     t1 = high_resolution_clock::now();
@@ -115,13 +115,14 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
 //        itv.search_overlap(item.start, item.end, a);
-        found += itv.countOverlapping(item.start, item.end);
         //found += a.size();
+        found += itv.countOverlapping(item.start, item.end);
+
     }
     std::cout << uSec(t1) << " query ms" << std::endl;
     std::cout << uSec(t0) << " total ms" << std::endl;
     std::cout << "Found: " << found << std::endl;
-    return;
+//    return;
 
     std::cout << "\n IITree \n";
     t0 = high_resolution_clock::now();
