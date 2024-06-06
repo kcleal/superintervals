@@ -1,4 +1,4 @@
-CXXFLAGS=	-g -Wall -O3 -std=c++17 -march=native
+CXXFLAGS=	-g -Wall -O3 -std=c++17 -march=native # -fvectorize -Rpass=loop-vectorize
 LIBS=		-lz
 EXE=		run-tests run-cpp-libs
 INCLUDE= -I../matrylist -I./3rd-party

@@ -6,6 +6,7 @@
 #include <limits>
 #include <iostream>
 
+#include <arm_neon.h>
 
 // S for scalar for start, end. T for data type
 template<typename S, typename T>
@@ -196,6 +197,22 @@ class MatryList {
         }
         size_t found = 0;
         size_t i = idx;
+        const size_t block = 64;
+        while (i > block) {
+            size_t j=i;
+            size_t count = 0;
+            for (; j > i-block; --j) {
+                count += (start <= ends[j]) ? 1 : 0;
+            }
+            found += count;
+            i = j;
+            if (count < block) {
+                break;
+            }
+        }
+
+//        size_t found = 0;
+//        size_t i = idx;
         while (i > 0) {
             if (start <= ends[i--]) {
                 ++found;
@@ -209,8 +226,8 @@ class MatryList {
         if (i==0 && start <= ends[0]) {
             ++found;
         }
-        last_start = start;
-        last_end = end;
+//        last_start = start;
+//        last_end = end;
         return found;
     }
 };
@@ -432,11 +449,27 @@ class MatryListE {
             return 0;
         }
         // try and re-use upper bound
-        if (start < last_start || end < last_end || starts[jdx] <= end) {
-            eytzinger_upper_bound(end);
-        }
+//        if (start < last_start || end < last_end || starts[jdx] <= end) {
+//            eytzinger_upper_bound(end);
+//        }
+        eytzinger_upper_bound(end);
         size_t found = 0;
         size_t i = idx;
+
+        const size_t block = 64;
+        while (i > block) {
+            size_t j=i;
+            size_t count = 0;
+            for (; j > i-block; --j) {
+                count += (start <= ends[j]) ? 1 : 0;
+            }
+            found += count;
+            i = j;
+            if (count < block) {
+                break;
+            }
+        }
+
         while (i > 0) {
             if (start <= ends[i--]) {
                 ++found;
@@ -450,6 +483,8 @@ class MatryListE {
         if (i==0 && start <= ends[0]) {
             ++found;
         }
+
+//        std::cout << b << std::endl;
         last_start = start;
         last_end = end;
         return found;

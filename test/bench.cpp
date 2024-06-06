@@ -94,47 +94,47 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     std::cout << uSec(t0) << " ms total" << std::endl;
     std::cout << "Found: " << found << std::endl;
 
-    std::cout << "\n IITree \n";
-    t0 = high_resolution_clock::now();
-    IITree<int, int> tree;
-    index = 0;
-    found = 0;
-    for (const auto& item : intervals) {
-        tree.add(item.start, item.end, index);
-        index += 1;
-    }
-    tree.index();
-    std::cout << uSec(t0) << " ms construct" << std::endl;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        tree.overlap(item.start, item.end, b);
-        found += b.size();
-    }
-    std::cout << uSec(t1) << " ms query" << std::endl;
-    std::cout << uSec(t0) << " ms total" << std::endl;
-    std::cout << "Found: " << found << std::endl;
-
-    std::cout << "\n IntervalTree \n";
-    t0 = high_resolution_clock::now();
-    std::vector<Interval<int, int>> intervals2;
-    index = 0;
-    found = 0;
-    for (const auto& item : intervals) {
-        intervals2.push_back(Interval<int, int>(item.start, item.end, index));
-        index += 1;
-    }
-    IntervalTree<int, int> tree2(std::move(intervals2));
-    std::cout << uSec(t0) << " ms construct" << std::endl;
-    std::vector<Interval<int, int>> results;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        auto result = tree2.findOverlapping(item.start, item.end);
-        results.insert(results.end(), result.begin(), result.end());
-        found += result.size();
-    }
-    std::cout << uSec(t1) << " ms query" << std::endl;
-    std::cout << uSec(t0) << " ms total" << std::endl;
-    std::cout << "Found: " << found << std::endl;
+//    std::cout << "\n IITree \n";
+//    t0 = high_resolution_clock::now();
+//    IITree<int, int> tree;
+//    index = 0;
+//    found = 0;
+//    for (const auto& item : intervals) {
+//        tree.add(item.start, item.end, index);
+//        index += 1;
+//    }
+//    tree.index();
+//    std::cout << uSec(t0) << " ms construct" << std::endl;
+//    t1 = high_resolution_clock::now();
+//    for (const auto& item : queries) {
+//        tree.overlap(item.start, item.end, b);
+//        found += b.size();
+//    }
+//    std::cout << uSec(t1) << " ms query" << std::endl;
+//    std::cout << uSec(t0) << " ms total" << std::endl;
+//    std::cout << "Found: " << found << std::endl;
+//
+//    std::cout << "\n IntervalTree \n";
+//    t0 = high_resolution_clock::now();
+//    std::vector<Interval<int, int>> intervals2;
+//    index = 0;
+//    found = 0;
+//    for (const auto& item : intervals) {
+//        intervals2.push_back(Interval<int, int>(item.start, item.end, index));
+//        index += 1;
+//    }
+//    IntervalTree<int, int> tree2(std::move(intervals2));
+//    std::cout << uSec(t0) << " ms construct" << std::endl;
+//    std::vector<Interval<int, int>> results;
+//    t1 = high_resolution_clock::now();
+//    for (const auto& item : queries) {
+//        auto result = tree2.findOverlapping(item.start, item.end);
+//        results.insert(results.end(), result.begin(), result.end());
+//        found += result.size();
+//    }
+//    std::cout << uSec(t1) << " ms query" << std::endl;
+//    std::cout << uSec(t0) << " ms total" << std::endl;
+//    std::cout << "Found: " << found << std::endl;
 
 }
 
