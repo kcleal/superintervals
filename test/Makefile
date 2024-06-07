@@ -1,8 +1,8 @@
-CXXFLAGS=	-g -Wall -O3 -std=c++17 -march=native # -fvectorize -Rpass=loop-vectorize
+CXXFLAGS=	-g -Wall -O3 -std=c++17 -march=native
 LIBS=		-lz
 EXE=		run-tests run-cpp-libs
 INCLUDE= -I../matrylist -I./3rd-party
-
+# GCC use -ftree-vectorize -fopt-info-vec-optimized
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
 	CXXFLAGS+=-fsanitize=address
