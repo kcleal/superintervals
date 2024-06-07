@@ -193,9 +193,13 @@ int main(int argc, char *argv[]) {
     itv.add(130, 140, 10);
     itv.index();
     itv.findOverlaps(90, 190, a); //assert (a.front() == 5 && a.size() == 4);
-    itv.clear();
 
-//    print_vec(a, itv);
+//    itv.searchInterval(90, 190);
+//    auto iter = itv.begin();
+//    for (const auto& item : iter) {
+//        std::cout << item.start << " " << item.end << " " << item.data << std::endl;
+//    }
+
     std::cout << "All tests passed\n";
     return 0;
 

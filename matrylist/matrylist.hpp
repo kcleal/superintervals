@@ -6,8 +6,6 @@
 #include <limits>
 #include <iostream>
 
-//#include <arm_neon.h>
-
 // S for scalar for start, end. T for data type
 template<typename S, typename T>
 class MatryList {
@@ -22,70 +20,77 @@ class MatryList {
     std::vector<T> data;
     size_t idx, n_intervals;
     bool startSorted, endSorted;
+    S it_low, it_high;
     MatryList()
         : idx(0)
         , n_intervals(0)
         , startSorted(true)
         , endSorted(true)
+        , it_low(0)
+        , it_high(0)
         {}
 
     ~MatryList() = default;
 
-//    struct IntervalItem {
-//        S start, end;
-//        T data;
-//    };
-//    class Iterator {
-//    public:
-//        Iterator(size_t idx)
-//            : it_index(idx) {}
-//
-//        IntervalItem operator*() const {
-//            return IntervalItem{intervals[it_index].start, intervals[it_index].end, data[it_index]};
-//        }
-//
-//        Iterator& operator--() {
-//            if (idx > 0) {
-//                --idx;
-//                if (start <= ends[idx]) {
-//                    return *this;
-//                } else {
-//                    if (branch[idx] >= idx) {
-//                        return *this;
-//                    }
-//                    idx = branch[idx];
-//                }
-//            }
-//
-//            --idx;
-//
-//            while (idx > 0) {
-//            if (start <= ends[i--]) {
-//                found.push_back(i+1);
-//            } else {
-//                if (++i; branch[i] >= i) {
-//                    break;
-//                }
-//                i = branch[i];
-//            }
-//        }
-//        if (!i && start <= ends[0]) {
-//            found.push_back(0);
-//        }
-//
-//            return *this;
-//        }
-//
-//        bool operator!=(const Iterator& other) const {
-//            return it1 != other.it1 || it2 != other.it2 || it3 != other.it3;
-//        }
-//    private:
-//        size_t it_index;
-//    };
-//
-//    Iterator begin() { return Iterator(intervals.data()); }
-//    Iterator end() { return Iterator(intervals.data() + intervals.size()); }
+    struct IntervalItem {
+        S start, end;
+        T data;
+    };
+    class Iterator {
+    public:
+        Iterator(const MatryList* list, size_t index) : matry(list) {
+            _start = list->it_low;
+            _end = list->it_high;
+            it_index = index;
+        }
+        typename MatryList::IntervalItem operator*() const {
+            return typename MatryList<S, T>::IntervalItem{matry->starts[it_index], matry->ends[it_index], matry->data[it_index]};
+        }
+        Iterator& operator++() {
+            if (it_index == 0) {
+                it_index = static_cast<size_t>(-1);
+                return *this;
+            }
+            if (it_index > 0) {
+                if (_start <= matry->ends[it_index]) {
+                    --it_index;
+                } else {
+                    if (matry->branch[it_index] >= it_index) {
+                        it_index = 0;
+                        return *this;
+                    }
+                    it_index = matry->branch[it_index];
+                    if (_start <= matry->ends[it_index]) {
+                        --it_index;
+                    } else {
+                        it_index = 0;
+                        return *this;
+                    }
+                }
+            }
+            return *this;
+        }
+        bool operator!=(const Iterator& other) const {
+            return it_index != other.it_index;
+        }
+        bool operator==(const Iterator& other) const {
+            return it_index == other.it_index;
+        }
+        Iterator begin() const { return Iterator(matry, matry->idx); }
+        Iterator end() const { return Iterator(matry, 0); }
+    private:
+        S _start, _end;
+        const MatryList<S, T>* matry;
+        size_t it_index;
+    };
 
+    Iterator begin() const { return Iterator(this, idx); }
+    Iterator end() const { return Iterator(this, 0); }
+
+    void searchInterval(S start, S end) {
+        it_low = start; it_high = end;
+        upper_bound(end);
+    }
 
     void clear() {
         idx = 0;
@@ -111,8 +116,7 @@ class MatryList {
         data.emplace_back(value);
     }
 
-    // https://academy.realm.io/posts/how-we-beat-cpp-stl-binary-search/
-    inline void upper_bound(S value) {
+    inline void upper_bound(S value) {  // https://academy.realm.io/posts/how-we-beat-cpp-stl-binary-search/
         size_t size = n_intervals;
         idx = 0;
         while (size > 0) {
@@ -265,7 +269,4 @@ class MatryList {
         return found;
     }
 
-//    size_t countOverlaps(S start, S end) {
-//
-//    }
 };
