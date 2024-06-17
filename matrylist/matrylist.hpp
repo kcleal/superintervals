@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#ifdef __AVX2__
+    #include <immintrin.h>
+#endif
 
 // S for scalar for start, end. T for data type
 template<typename S, typename T>
@@ -13,9 +16,9 @@ class MatryList {
     struct Interval {
         S start, end;
     };
-    alignas(64) std::vector<S> starts;
-    alignas(64) std::vector<S> ends;
-    alignas(64) std::vector<size_t> branch;
+    alignas(sizeof(S)) std::vector<S> starts;
+    alignas(sizeof(S)) std::vector<S> ends;
+    alignas(sizeof(size_t)) std::vector<size_t> branch;
     std::vector<Interval> intervals;
     std::vector<T> data;
     size_t idx, n_intervals;
@@ -198,14 +201,39 @@ class MatryList {
             branch.clear();
         }
         branch.resize(intervals.size(), SIZE_MAX);
+//        for (i=0; i < ends.size() - 1; ++i) {
+//            for (size_t j=i + 1; j < ends.size(); ++j) {
+//                if (ends[j] >= ends[i]) {
+//                    break;
+//                }
+//                branch[j] = i;
+//            }
+//        }
+
         for (i=0; i < ends.size() - 1; ++i) {
-            for (size_t j=i + 1; j < ends.size(); ++j) {
-                if (ends[j] >= ends[i]) {
-                    break;
+            if (ends[i+1] < ends[i]) {
+                branch[i+1] = i;
+            } else {
+                if (branch[i] != SIZE_MAX && ends[i+1] < ends[branch[i]]) {
+                    branch[i+1] = branch[i];
                 }
-                branch[j] = i;
             }
         }
+
+
+// Alternative construction, but slower
+//        std::vector<std::pair<S, size_t>> br;
+//        br.reserve(1000);
+//        br.push_back({ends[0], 0});
+//        for (i=1; i < ends.size(); ++i) {
+//            while (!br.empty() && br.back().first < ends[i]) {
+//                br.pop_back();
+//            }
+//            if (!br.empty()) {
+//                branch[i] = br.back().second;
+//            }
+//            br.push_back({ends[i], i});
+//        }
         idx = 0;
     }
 
@@ -241,18 +269,13 @@ class MatryList {
         upper_bound(end);
         size_t found = 0;
         size_t i = idx;
-        const size_t block = 64;
-        while (i > block) {
-            size_t count = 0;
-            for (size_t j = i; j > i - block; --j) {
-                count += (start <= ends[j]) ? 1 : 0;
-            }
-            found += count;
-            i -= block;
-            if (count < block) {
-                break;
-            }
-        }
+        constexpr size_t block = 32;
+
+#ifdef __AVX2__
+        __m256i start_vec = _mm256_set1_epi32(start);
+        constexpr size_t simd_width = 256 / (sizeof(S) * 8);
+#endif
+
         while (i > 0) {
             if (start > ends[i--]) {
                 if (++i; branch[i] >= i) {
@@ -261,6 +284,35 @@ class MatryList {
                 i = branch[i];
             } else {
                 ++found;
+
+#ifdef __AVX2__
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; j -= simd_width) {
+                        __m256i ends_vec = _mm256_load_si256((__m256i*)(&ends[j - simd_width + 1]));
+                        __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
+                        int mask = _mm256_movemask_epi8(~cmp_mask);
+                        count += _mm_popcnt_u32(mask) / 4;  // Each comparison result is 4 bits
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#else
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; --j) {
+                        count += (start <= ends[j]) ? 1 : 0;
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#endif
             }
         }
         if (i==0 && start <= ends[0]) {
