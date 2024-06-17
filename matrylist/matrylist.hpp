@@ -7,6 +7,8 @@
 #include <iostream>
 #ifdef __AVX2__
     #include <immintrin.h>
+#elif defined __ARM_NEON
+    #include <arm_neon.h>
 #endif
 
 // S for scalar for start, end. T for data type
@@ -16,9 +18,9 @@ class MatryList {
     struct Interval {
         S start, end;
     };
-    alignas(sizeof(S)) std::vector<S> starts;
-    alignas(sizeof(S)) std::vector<S> ends;
-    alignas(sizeof(size_t)) std::vector<size_t> branch;
+    alignas(alignof(std::vector<S>)) std::vector<S> starts;
+    alignas(alignof(std::vector<S>)) std::vector<S> ends;
+    alignas(alignof(size_t)) std::vector<size_t> branch;
     std::vector<Interval> intervals;
     std::vector<T> data;
     size_t idx, n_intervals;
@@ -185,22 +187,22 @@ class MatryList {
                 intervals[i].start = itv.start;
                 intervals[i].end = itv.end;
                 data[i] = itv.data;
-                ends[i] = itv.end;
                 ++i;
             }
             startSorted = true;
             endSorted = true;
         }
         i = 0;
-        for (const auto& item: intervals) {
-            starts[i] = item.start;
-            ends[i] = item.end;
+        for (const auto& itv: intervals) {
+            starts[i] = itv.start;
+            ends[i] = itv.end;
             ++i;
         }
         if (!branch.empty()) {
             branch.clear();
         }
         branch.resize(intervals.size(), SIZE_MAX);
+
 //        for (i=0; i < ends.size() - 1; ++i) {
 //            for (size_t j=i + 1; j < ends.size(); ++j) {
 //                if (ends[j] >= ends[i]) {
@@ -210,30 +212,15 @@ class MatryList {
 //            }
 //        }
 
+        S last_end = ends[0];
         for (i=0; i < ends.size() - 1; ++i) {
             if (ends[i+1] < ends[i]) {
                 branch[i+1] = i;
-            } else {
-                if (branch[i] != SIZE_MAX && ends[i+1] < ends[branch[i]]) {
-                    branch[i+1] = branch[i];
-                }
+                last_end = ends[i];
+            } else if (ends[i+1] < last_end) {
+                branch[i+1] = branch[i];
             }
         }
-
-
-// Alternative construction, but slower
-//        std::vector<std::pair<S, size_t>> br;
-//        br.reserve(1000);
-//        br.push_back({ends[0], 0});
-//        for (i=1; i < ends.size(); ++i) {
-//            while (!br.empty() && br.back().first < ends[i]) {
-//                br.pop_back();
-//            }
-//            if (!br.empty()) {
-//                branch[i] = br.back().second;
-//            }
-//            br.push_back({ends[i], i});
-//        }
         idx = 0;
     }
 
@@ -274,6 +261,10 @@ class MatryList {
 #ifdef __AVX2__
         __m256i start_vec = _mm256_set1_epi32(start);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
+#elif defined __ARM_NEON
+        int32x4_t start_vec = vdupq_n_s32(start);
+        constexpr size_t simd_width = 128 / (sizeof(S) * 8);
+        uint32x4_t ones = vdupq_n_u32(1);
 #endif
 
         while (i > 0) {
@@ -293,6 +284,21 @@ class MatryList {
                         __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
                         int mask = _mm256_movemask_epi8(~cmp_mask);
                         count += _mm_popcnt_u32(mask) / 4;  // Each comparison result is 4 bits
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#elif defined __ARM_NEON
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; j -= simd_width) { // Neon processes 4 int32 at a time
+                        int32x4_t ends_vec = vld1q_s32(&ends[j - simd_width + 1]);
+                        uint32x4_t mask = vcleq_s32(start_vec, ends_vec);
+                        uint32x4_t bool_mask = vandq_u32(mask, ones); // Convert -1 to 1 for true elements
+                        count += vaddvq_u32(bool_mask);
                     }
                     found += count;
                     i -= block;
