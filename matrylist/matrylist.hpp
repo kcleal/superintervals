@@ -217,6 +217,7 @@ class MatryList {
             found.clear();
         }
         upper_bound(end);
+
         size_t i = idx;
         while (i > 0) {
             if (start <= ends[i--]) {
@@ -238,7 +239,6 @@ class MatryList {
             return 0;
         }
         upper_bound(end);
-
         size_t found = 0;
         size_t i = idx;
         const size_t block = 64;

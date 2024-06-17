@@ -2,3 +2,7 @@
 /test/run-cpp-libs.dSYM/
 /test/run_tests.dSYM/
 /test/run-tests
+/matrylist/matrylist.cpp
+/test/run-tests.dSYM/
+/build/
+/matrylist.egg-info/
