@@ -17,6 +17,7 @@ class MatryList {
     public:
     struct Interval {
         S start, end;
+        size_t index;
     };
     alignas(alignof(std::vector<S>)) std::vector<S> starts;
     alignas(alignof(std::vector<S>)) std::vector<S> ends;
@@ -94,12 +95,11 @@ class MatryList {
 
     void searchInterval(S start, S end) {
         it_low = start; it_high = end;
-        upper_bound(end);
+        upperBound(end);
     }
 
     void clear() {
-        idx = 0;
-        intervals.clear(); data.clear(); starts.clear(); branch.clear();
+        intervals.clear(); data.clear(); starts.clear(); ends.clear(); branch.clear(); idx = 0;
     }
 
     void reserve(size_t n) {
@@ -117,11 +117,12 @@ class MatryList {
                 endSorted = false;
             }
         }
-        intervals.emplace_back() = {start, end};
+        intervals.emplace_back() = {start, end, n_intervals};
         data.emplace_back(value);
+        ++n_intervals;
     }
 
-    inline void upper_bound(S value) {  // https://academy.realm.io/posts/how-we-beat-cpp-stl-binary-search/
+    inline void upperBound(S value) {  // https://academy.realm.io/posts/how-we-beat-cpp-stl-binary-search/
         size_t size = n_intervals;
         idx = 0;
         while (size > 0) {
@@ -138,105 +139,114 @@ class MatryList {
         }
     }
 
-    struct tmpItem {
-        S start, end;
-        T data;
-    };
+    void sortIntervals() {
+        size_t i;
+        if (!startSorted) {
+            std::sort(intervals.begin(), intervals.end(),
+            [](const Interval& a, const Interval& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
+            std::vector<T> data_copy = data;
+            i = 0;
+            for (const auto& itv : intervals) {
+                starts[i] = itv.start;
+                ends[i] = itv.end;
+                data[i++] = data_copy[itv.index];
+            }
+            startSorted = true;
+            endSorted = true;
+        } else if (!endSorted) {  // only sort parts that need sorting - ends in descending order
+            std::vector<T> data_copy = data;
+            auto it_start = intervals.begin();
+            while (it_start != intervals.end()) {
+                auto block_start = it_start;
+                auto block_end = it_start + 1;
+                bool srt = false;
+                while (block_end != intervals.end() && block_end->start == block_start->start) {
+                    if (block_end->end > (block_end - 1)->end) {
+                        srt = true;
+                    }
+                    ++block_end;
+                }
+                if (srt) {
+                    std::sort(block_start, block_end, [](const Interval& a, const Interval& b) { return a.end > b.end; });
+                    i = std::distance(intervals.begin(), block_start);
+                    while (true) {
+                        data[i++] = data_copy[block_start->index];
+                        if (block_start == block_end) {
+                            break;
+                        }
+                        ++block_start;
+                    }
+                }
+                it_start = block_end;
+            }
+            i = 0;
+            for (const auto& itv : intervals) {
+                starts[i] = itv.start;
+                ends[i++] = itv.end;
+            }
+            endSorted = true;
+        } else {
+            i = 0;
+            for (const auto& itv : intervals) {
+                starts[i] = itv.start;
+                ends[i++] = itv.end;
+            }
+        }
+    }
 
     void index() {
-        size_t i;
         n_intervals = intervals.size();
         if (n_intervals < 2) {
             return;
         }
         starts.resize(n_intervals);
         ends.resize(n_intervals);
-        if (!startSorted || !endSorted) {  // sort data by start, sort data by end and keep the indexes
-            std::vector<tmpItem> tmp(intervals.size());
-            i = 0;
-            for (const auto &itv : intervals) {
-                tmp[i].start = itv.start;
-                tmp[i].end = itv.end;
-                tmp[i].data = data[i];
-                ++i;
-            }
-            if (!startSorted) {
-                std::sort(tmp.begin(), tmp.end(),
-                [](const tmpItem& a, const tmpItem& b) {
-                    return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
-            } else {  // only sort parts that need sorting - ends in descending order
-                auto it_start = tmp.begin();
-                while (it_start != tmp.end()) {
-                    auto block_start = it_start;
-                    auto block_end = it_start + 1;
-                    bool srt = false;
-                    while (block_end != tmp.end() && block_end->start == block_start->start) {
-                        if (block_end->end > (block_end - 1)->end) {
-                            srt = true;
-                        }
-                        ++block_end;
-                    }
-                    if (srt) {
-                        std::sort(block_start, block_end, [](const tmpItem& a, const tmpItem& b) { return a.end > b.end; });
-                    }
-                    it_start = block_end;
-                }
-            }
-            i = 0;
-            for (const auto& itv : tmp) {
-                intervals[i].start = itv.start;
-                intervals[i].end = itv.end;
-                data[i] = itv.data;
-                ++i;
-            }
-            startSorted = true;
-            endSorted = true;
-        }
-        i = 0;
-        for (const auto& itv: intervals) {
-            starts[i] = itv.start;
-            ends[i] = itv.end;
-            ++i;
-        }
         if (!branch.empty()) {
             branch.clear();
         }
         branch.resize(intervals.size(), SIZE_MAX);
-
-//        for (i=0; i < ends.size() - 1; ++i) {
-//            for (size_t j=i + 1; j < ends.size(); ++j) {
-//                if (ends[j] >= ends[i]) {
-//                    break;
-//                }
-//                branch[j] = i;
-//            }
-//        }
-
+        sortIntervals();
         S last_end = ends[0];
-        for (i=0; i < ends.size() - 1; ++i) {
-            if (ends[i+1] < ends[i]) {
-                branch[i+1] = i;
-                last_end = ends[i];
-            } else if (ends[i+1] < last_end) {
-                branch[i+1] = branch[i];
+        size_t j = 1;
+        for (size_t i=0; i < ends.size() - 1; ++i) {
+            if (ends[j] < ends[i]) {
+                branch[j] = i;
+                last_end = (ends[i] > last_end) ? ends[i] : last_end;
+            } else if (ends[j] < last_end) {
+                branch[j] = branch[i];
             }
+            ++j;
         }
         idx = 0;
     }
 
-    void findOverlaps(S start, S end, std::vector<size_t>& found) {
+    IntervalItem at(size_t index) {
+        return IntervalItem(starts[index], ends[index], data[index]);
+    }
+
+    void at(size_t index, IntervalItem& itv) {
+        itv.start = starts[index];
+        itv.end = ends[index];
+        itv.data = data[index];
+    }
+
+    bool anyOverlaps(S start, S end) {
+        upperBound(end);
+        return start <= ends[idx];
+    }
+
+    void findOverlaps(S start, S end, std::vector<size_t>& found_indexes) {
         if (!n_intervals) {
             return;
         }
-        if (!found.empty()) {
-            found.clear();
+        if (!found_indexes.empty()) {
+            found_indexes.clear();
         }
-        upper_bound(end);
-
+        upperBound(end);
         size_t i = idx;
         while (i > 0) {
             if (start <= ends[i--]) {
-                found.push_back(i+1);
+                found_indexes.push_back(i+1);
             } else {
                 if (++i; branch[i] >= i) {
                     break;
@@ -245,7 +255,7 @@ class MatryList {
             }
         }
         if (!i && start <= ends[0]) {
-            found.push_back(0);
+            found_indexes.push_back(0);
         }
     }
 
@@ -253,7 +263,7 @@ class MatryList {
         if (!n_intervals) {
             return 0;
         }
-        upper_bound(end);
+        upperBound(end);
         size_t found = 0;
         size_t i = idx;
         constexpr size_t block = 32;
