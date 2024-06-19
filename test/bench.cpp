@@ -1,6 +1,9 @@
 
 #include "IITree.hpp"
 #include "IntervalTree.h"
+extern "C" {
+    #include "intervaldb.h"
+}
 #include "matrylist.hpp"
 #include "matrylistDynamic.hpp"
 
@@ -11,7 +14,7 @@
 #include <sstream>
 #include <random>
 #include <utility>
-#include <unordered_set>
+#include <unordered_map>
 
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
@@ -32,7 +35,6 @@ void load_intervals(const std::string& intervals_file,
                     const std::string& queries_file,
                     std::vector<BedInterval>& intervals,
                     std::vector<BedInterval>& queries) {
-    high_resolution_clock::time_point t0 = high_resolution_clock::now();
     intervals.clear();
     queries.clear();
     std::ifstream intervals_stream(intervals_file);
@@ -61,111 +63,129 @@ void load_intervals(const std::string& intervals_file,
         int end = std::stoi(token);
         queries.emplace_back(BedInterval{std::min(start, end), std::max(start, end)});
     }
-    std::cout << uSec(t0) << "ms, N ref intervals " << intervals.size() << " N queries " << queries.size() << std::endl;
+    std::cerr << "N ref intervals: " << intervals.size() << ", N queries: " << queries.size() << std::endl;
 }
 
 
 void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
-    size_t found;
-    size_t index;
+    size_t found, index;
     high_resolution_clock::time_point t0, t1;
     std::vector<size_t> a, b;
+//    std::unordered_map<size_t, size_t> found_indexes, found_indexes2;
 
-    std::cout << "\n MatryList \n";
-    MatryList<int, int> itv;
+    std::cout << "MatryList\t";
+    MatryList<int, size_t> itv;
     t0 = high_resolution_clock::now();
-    itv = MatryList<int, int>();
+    itv = MatryList<int, size_t>();
     index = 0;
-    found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : intervals) {
         itv.add(item.start, item.end, index);
         index += 1;
     }
     itv.index();
-    std::cout << uSec(t0) << " ms construct" << std::endl;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        found += itv.countOverlaps(item.start, item.end);
-//        found += itv.anyOverlaps(item.start, item.end);
-
-    }
-    std::cout << uSec(t1) << " ms query countOverlaps n=" << found << std::endl;
+    std::cout << uSec(t0) << "\t";  // construct
     found = 0;
+//    index = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
         itv.findOverlaps(item.start, item.end, a);
+//        found_indexes[index] = a.size(); index += 1;
         found += a.size();
-        a.clear();
     }
-    std::cout << uSec(t1) << " ms query findOverlaps n=" << found << std::endl;
+    std::cerr << uSec(t1) << "\t" << found << "\t";  // find all overlapping
 
-
-    std::cout << "\n MatryListDynamic \n";
-    MatryListDynamic<int, int> itv2;
-    std::vector<MatryListDynamic<int, int>::IntervalItem> c;
-    t0 = high_resolution_clock::now();
-    itv2 = MatryListDynamic<int, int>();
-    index = 0;
-    found = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : intervals) {
-        itv2.add(item.start, item.end, index);
-        index += 1;
-    }
-    itv2.index();
-    std::cout << uSec(t0) << " ms construct" << std::endl;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        found += itv2.countOverlaps(item.start, item.end);
-//        found += itv.anyOverlaps(item.start, item.end);
-
-    }
-    std::cout << uSec(t1) << " ms query countOverlaps n=" << found << std::endl;
     found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        itv2.findOverlaps(item.start, item.end, c);
-        found += c.size();
-        a.clear();
+        found += itv.countOverlaps(item.start, item.end);
     }
-    std::cout << uSec(t1) << " ms query findOverlaps n=" << found << std::endl;
+    std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
 
-    std::cout << "\n IITree \n";
+    std::cout << "ImplicitITree\t";
     t0 = high_resolution_clock::now();
     IITree<int, int> tree;
     index = 0;
-    found = 0;
     for (const auto& item : intervals) {
         tree.add(item.start, item.end, index);
         index += 1;
     }
     tree.index();
-    std::cout << uSec(t0) << " ms construct" << std::endl;
+    std::cerr << uSec(t0) << "\t";
+
+    found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
         tree.overlap(item.start, item.end, b);
+        // Only returns indexes need to enumerate actual data for a fair test
+        for (const auto &v: b) {
+            index = tree.data(v); // make sure this step is not elided
+        }
         found += b.size();
     }
-    std::cout << uSec(t1) << " ms query n=" << found << std::endl;
+    std::cout << uSec(t1) << "\t" << found << std::endl;
 
-    std::cout << "\n IntervalTree \n";
-    t0 = high_resolution_clock::now();
-    std::vector<Interval<int, int>> intervals2;
+
+    std::cout << "IntervalTree\t";
+    std::vector<interval_tree::Interval<int, int>> intervals2;
     index = 0;
-    found = 0;
     for (const auto& item : intervals) {
-        intervals2.push_back(Interval<int, int>(item.start, item.end, index));
+        intervals2.push_back(interval_tree::Interval<int, int>(item.start, item.end, index));
         index += 1;
     }
-    IntervalTree<int, int> tree2(std::move(intervals2));
-    std::cout << uSec(t0) << " ms construct" << std::endl;
+    t0 = high_resolution_clock::now();
+    interval_tree::IntervalTree<int, int> tree2(std::move(intervals2));
+    std::cerr << uSec(t0) << "\t";
+
+    found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        auto result = tree2.findOverlapping(item.start, item.end);
+        std::vector<interval_tree::Interval<int, int>> result = tree2.findOverlapping(item.start, item.end);
+//        found_indexes2[index] = result.size(); index += 1;
         found += result.size();
     }
-    std::cout << uSec(t1) << " ms query n=" << found << std::endl;
+    std::cerr << uSec(t1) << "\t" << found << std::endl;
+
+//    for (const auto& kv : found_indexes) {
+//        if (kv.second != found_indexes2[kv.first])
+//        std::cout << kv.first << " " << kv.second << ", " << found_indexes2[kv.second] << std::endl;
+//    }
+
+    std::cout << "NestedContList\t";
+    t0 = high_resolution_clock::now();
+
+    int nD = (int)intervals.size();
+    int* p_n = (int*)malloc(sizeof(int));
+    int* p_nlists = (int*)malloc(sizeof(int));
+    int* nhits = (int*)malloc(sizeof(int));
+    IntervalMap* im = (IntervalMap*)calloc(1, sizeof(IntervalMap));
+    CALLOC(im, nD, IntervalMap);
+    index = 0;
+    for (const auto& item : intervals) {
+        im[index].start  = (int)item.start;
+        im[index].end  = (int)item.end;
+        im[index].target_id = (int)index;
+        im[index].sublist = -1;
+        index += 1;
+    }
+    SublistHeader* sh = build_nested_list(im, nD, p_n, p_nlists);
+    std::cerr << uSec(t0) << "\t";
+
+    t1 = high_resolution_clock::now();
+    IntervalIterator *it;
+    IntervalIterator *it_alloc;
+    IntervalMap im_buf[1024];
+    found = 0;
+    for (const auto& item : queries) {
+        it_alloc = interval_iterator_alloc();
+        it = it_alloc;
+        while(it){
+            find_intervals(it, item.start, item.end, im, *p_n, sh, *p_nlists, im_buf, 1024, nhits, &it);
+            found += *nhits;
+        }
+        free_interval_iterator(it_alloc);
+    }
+    std::cerr << uSec(t1) << "\t" << found << std::endl;
 
 }
 
@@ -177,8 +197,6 @@ int main(int argc, char *argv[]) {
     std::vector<BedInterval> intervals;
     std::vector<BedInterval> queries;
 
-    std::cout << "\n****** Reads+genes2 ******\n";
-    load_intervals(std::string(argv[1]), std::string(argv[2]), intervals, queries); //, shuffle);
+    load_intervals(std::string(argv[1]), std::string(argv[2]), intervals, queries);
     run_tools(intervals, queries);
-
 }

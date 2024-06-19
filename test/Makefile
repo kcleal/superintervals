@@ -3,6 +3,8 @@ LIBS=		-lz
 EXE=		run-tests run-cpp-libs
 INCLUDE= -I../matrylist -I./3rd-party
 # GCC use -ftree-vectorize -fopt-info-vec-optimized
+
+# run gcc -c build_nested_list.c -o build_nested_list.o
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
 	CXXFLAGS+=-fsanitize=address
@@ -11,11 +13,14 @@ endif
 
 all:$(EXE)
 
+build_ncls: ./3rd-party/intervaldb.c
+	$(CC) $(CFLAGS) -c ./3rd-party/intervaldb.c -o intervaldb.o
+
 run-tests: tests.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDE) $< $(LIBS) -o run-tests
 
-run-cpp-libs: bench.cpp
-		$(CXX) $(CXXFLAGS) $(INCLUDE) $< $(LIBS) -o $@
+run-cpp-libs: bench.cpp build_ncls
+		$(CXX) $(CXXFLAGS) $(INCLUDE) $< intervaldb.o $(LIBS) -o $@
 
 clean:
 		rm -fr *.o a.out *.dSYM $(EXE)
