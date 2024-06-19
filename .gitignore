@@ -6,3 +6,6 @@
 /test/run-tests.dSYM/
 /build/
 /matrylist.egg-info/
+/test/bench_data/
+/test/3rd-party/coitrees/target/
+/test/intervaldb.o

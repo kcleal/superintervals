@@ -1,0 +1,41 @@
+[package]
+name = "coitrees"
+description = "A very fast data structure for overlap queries on sets of intervals."
+version = "0.4.0"
+authors = ["Daniel C. Jones <djones3@fredhutch.org>"]
+edition = "2021"
+repository = "https://github.com/dcjones/coitrees"
+documentation = "https://docs.rs/coitrees"
+readme = "README.md"
+license-file = "LICENSE"
+
+[profile.release]
+debug = 0
+strip = "symbols"
+lto = true
+opt-level = 3
+codegen-units = 1
+
+[features]
+nosimd = []
+
+[profile.dev.package."*"]
+opt-level = 3 # Compile dependencies with optimizations on even in debug mode.
+
+[profile.no-opt]
+inherits = "dev"
+opt-level = 0
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
+
+[dev-dependencies]
+rand = "0.8"
+fnv = "1.0.7"
+libc = "0.2"
+clap = { version = "4.3.7", features = ["derive"] }
+
+[[example]]
+name = "bed-intersect"

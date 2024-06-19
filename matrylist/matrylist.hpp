@@ -1,6 +1,16 @@
+/*
+MatryList - a static data structure for finding interval intersections
 
+Notes
+-----
+ - intervals are considered end-inclusive
+ - the index() function must be called before any queries. If more
+   intervals are added, call index() again.
+
+*/
 #pragma once
 
+#include <algorithm>
 #include <vector>
 #include <iostream>
 #ifdef __AVX2__
@@ -270,56 +280,60 @@ class MatryList {
 #ifdef __AVX2__
         __m256i start_vec = _mm256_set1_epi32(start);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
-        while (i > block) {
-            size_t count = 0;
-            for (size_t j = i; j > i - block; j -= simd_width) {
-                __m256i ends_vec = _mm256_load_si256((__m256i*)(&ends[j - simd_width + 1]));
-                __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
-                int mask = _mm256_movemask_epi8(~cmp_mask);
-                count += _mm_popcnt_u32(mask) / 4;  // Each comparison result is 4 bits
-            }
-            found += count;
-            i -= block;
-            if (count < block) {
-                break;
-            }
-        }
 #elif defined __ARM_NEON
         int32x4_t start_vec = vdupq_n_s32(start);
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
-        while (i > block) {
-            size_t count = 0;
-            for (size_t j = i; j > i - block; j -= simd_width) { // Neon processes 4 int32 at a time
-                int32x4_t ends_vec = vld1q_s32(&ends[j - simd_width + 1]);
-                uint32x4_t mask = vcleq_s32(start_vec, ends_vec);
-                uint32x4_t bool_mask = vandq_u32(mask, ones); // Convert -1 to 1 for true elements
-                count += vaddvq_u32(bool_mask);
-            }
-            found += count;
-            i -= block;
-            if (count < block) {
-                break;
-            }
-        }
-#else // rely on auto-vectorization
-        while (i > block) {
-            size_t count = 0;
-            for (size_t j = i; j > i - block; --j) {
-                count += (start <= ends[j]) ? 1 : 0;
-            }
-            found += count;
-            i -= block;
-            if (count < block) {
-                break;
-            }
-        }
 #endif
-        // process remaining
-        while (i != 0) {
+
+        while (i > 0) {
             if (start <= ends[i]) {
                 ++found;
                 --i;
+
+#ifdef __AVX2__
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; j -= simd_width) {
+                        __m256i ends_vec = _mm256_load_si256((__m256i*)(&ends[j - simd_width + 1]));
+                        __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
+                        int mask = _mm256_movemask_epi8(~cmp_mask);
+                        count += _mm_popcnt_u32(mask) / 4;  // Each comparison result is 4 bits
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#elif defined __ARM_NEON
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; j -= simd_width) { // Neon processes 4 int32 at a time
+                        int32x4_t ends_vec = vld1q_s32(&ends[j - simd_width + 1]);
+                        uint32x4_t mask = vcleq_s32(start_vec, ends_vec);
+                        uint32x4_t bool_mask = vandq_u32(mask, ones); // Convert -1 to 1 for true elements
+                        count += vaddvq_u32(bool_mask);
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#else
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; --j) {
+                        count += (start <= ends[j]) ? 1 : 0;
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#endif
             } else {
                 i = branch[i];
             }

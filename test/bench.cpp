@@ -5,7 +5,6 @@ extern "C" {
     #include "intervaldb.h"
 }
 #include "matrylist.hpp"
-#include "matrylistDynamic.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -71,7 +70,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     size_t found, index;
     high_resolution_clock::time_point t0, t1;
     std::vector<size_t> a, b;
-//    std::unordered_map<size_t, size_t> found_indexes, found_indexes2;
+    std::unordered_map<size_t, size_t> found_indexes, found_indexes2;
 
     std::cout << "MatryList\t";
     MatryList<int, size_t> itv;
@@ -80,7 +79,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     index = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : intervals) {
-        itv.add(item.start, item.end, index);
+        itv.add(item.start, item.end - 1, index);
         index += 1;
     }
     itv.index();
@@ -89,7 +88,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
 //    index = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        itv.findOverlaps(item.start, item.end, a);
+        itv.findOverlaps(item.start, item.end - 1, a);
 //        found_indexes[index] = a.size(); index += 1;
         found += a.size();
     }
@@ -98,7 +97,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        found += itv.countOverlaps(item.start, item.end);
+        found += itv.countOverlaps(item.start, item.end - 1);
     }
     std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
 
@@ -130,7 +129,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     std::vector<interval_tree::Interval<int, int>> intervals2;
     index = 0;
     for (const auto& item : intervals) {
-        intervals2.push_back(interval_tree::Interval<int, int>(item.start, item.end, index));
+        intervals2.push_back(interval_tree::Interval<int, int>(item.start, item.end - 1, index));
         index += 1;
     }
     t0 = high_resolution_clock::now();
@@ -140,7 +139,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        std::vector<interval_tree::Interval<int, int>> result = tree2.findOverlapping(item.start, item.end);
+        std::vector<interval_tree::Interval<int, int>> result = tree2.findOverlapping(item.start, item.end - 1);
 //        found_indexes2[index] = result.size(); index += 1;
         found += result.size();
     }
@@ -176,17 +175,25 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     IntervalIterator *it_alloc;
     IntervalMap im_buf[1024];
     found = 0;
+//    index = 0;
     for (const auto& item : queries) {
         it_alloc = interval_iterator_alloc();
         it = it_alloc;
+//        size_t c_tmp = 0;
         while(it){
             find_intervals(it, item.start, item.end, im, *p_n, sh, *p_nlists, im_buf, 1024, nhits, &it);
             found += *nhits;
+//            c_tmp += *nhits;
         }
+//        found_indexes2[index] = c_tmp; index += 1;
         free_interval_iterator(it_alloc);
     }
     std::cerr << uSec(t1) << "\t" << found << std::endl;
 
+//    for (const auto& kv : found_indexes) {
+//        if (kv.second != found_indexes2[kv.first])
+//        std::cout << kv.first << " " << kv.second << ", " << found_indexes2[kv.second] << std::endl;
+//    }
 }
 
 int main(int argc, char *argv[]) {

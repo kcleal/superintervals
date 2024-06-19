@@ -4,7 +4,9 @@ EXE=		run-tests run-cpp-libs
 INCLUDE= -I../matrylist -I./3rd-party
 # GCC use -ftree-vectorize -fopt-info-vec-optimized
 
-# run gcc -c build_nested_list.c -o build_nested_list.o
+# to build coitrees use:
+# cd 3rd-party/coitrees; cargo run --release --example bed-intersect && cp target/release/examples/bed-intersect ../../
+
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
 	CXXFLAGS+=-fsanitize=address
