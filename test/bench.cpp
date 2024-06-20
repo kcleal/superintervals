@@ -4,7 +4,7 @@
 extern "C" {
     #include "intervaldb.h"
 }
-#include "matrylist.hpp"
+#include "superintervals.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -72,10 +72,10 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     std::vector<size_t> a, b;
     std::unordered_map<size_t, size_t> found_indexes, found_indexes2;
 
-    std::cout << "MatryList\t";
-    MatryList<int, size_t> itv;
+    std::cout << "SuperIntervals\t";
+    SuperIntervals<int, size_t> itv;
     t0 = high_resolution_clock::now();
-    itv = MatryList<int, size_t>();
+    itv = SuperIntervals<int, size_t>();
     index = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : intervals) {

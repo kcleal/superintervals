@@ -1,5 +1,5 @@
 /*
-MatryList - a static data structure for finding interval intersections
+SuperIntervals - a static data structure for finding interval intersections
 
 Notes
 -----
@@ -21,7 +21,7 @@ Notes
 
 // S for scalar for start, end. T for data type
 template<typename S, typename T>
-class MatryList {
+class SuperIntervals {
     public:
     struct Interval {
         S start, end;
@@ -35,7 +35,7 @@ class MatryList {
     size_t idx, n_intervals;
     bool startSorted, endSorted;
     S it_low, it_high;
-    MatryList()
+    SuperIntervals()
         : idx(0)
         , n_intervals(0)
         , startSorted(true)
@@ -44,7 +44,7 @@ class MatryList {
         , it_high(0)
         {}
 
-    ~MatryList() = default;
+    ~SuperIntervals() = default;
 
     struct IntervalItem {
         S start, end;
@@ -52,13 +52,13 @@ class MatryList {
     };
     class Iterator {
     public:
-        Iterator(const MatryList* list, size_t index) : matry(list) {
+        Iterator(const SuperIntervals* list, size_t index) : super(list) {
             _start = list->it_low;
             _end = list->it_high;
             it_index = index;
         }
-        typename MatryList::IntervalItem operator*() const {
-            return typename MatryList<S, T>::IntervalItem{matry->starts[it_index], matry->ends[it_index], matry->data[it_index]};
+        typename SuperIntervals::IntervalItem operator*() const {
+            return typename SuperIntervals<S, T>::IntervalItem{super->starts[it_index], super->ends[it_index], super->data[it_index]};
         }
         Iterator& operator++() {
             if (it_index == 0) {
@@ -66,15 +66,15 @@ class MatryList {
                 return *this;
             }
             if (it_index > 0) {
-                if (_start <= matry->ends[it_index]) {
+                if (_start <= super->ends[it_index]) {
                     --it_index;
                 } else {
-                    if (matry->branch[it_index] >= it_index) {
+                    if (super->branch[it_index] >= it_index) {
                         it_index = 0;
                         return *this;
                     }
-                    it_index = matry->branch[it_index];
-                    if (_start <= matry->ends[it_index]) {
+                    it_index = super->branch[it_index];
+                    if (_start <= super->ends[it_index]) {
                         --it_index;
                     } else {
                         it_index = 0;
@@ -90,11 +90,11 @@ class MatryList {
         bool operator==(const Iterator& other) const {
             return it_index == other.it_index;
         }
-        Iterator begin() const { return Iterator(matry, matry->idx); }
-        Iterator end() const { return Iterator(matry, 0); }
+        Iterator begin() const { return Iterator(super, super->idx); }
+        Iterator end() const { return Iterator(super, 0); }
     private:
         S _start, _end;
-        const MatryList<S, T>* matry;
+        const SuperIntervals<S, T>* super;
         size_t it_index;
     };
 

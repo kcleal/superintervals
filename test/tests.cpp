@@ -1,11 +1,11 @@
 
-#include "matrylist.hpp"
+#include "superintervals.hpp"
 #include <iostream>
 #include <vector>
 #include <cassert>
 
 
-void print_vec(std::vector<size_t>& a, MatryList<int, int>& itv) {
+void print_vec(std::vector<size_t>& a, SuperIntervals<int, int>& itv) {
     std::cout << " Found:\n";
     for (auto item : a) {
         std::cout << item << " - " << itv.intervals[item].start << " " << itv.intervals[item].end << std::endl;
@@ -13,12 +13,12 @@ void print_vec(std::vector<size_t>& a, MatryList<int, int>& itv) {
 }
 
 
-void matrylistTests() {
+void superTests() {
     std::vector<size_t> a;
 
-    std::cout << "\n MatryList tests \n";
-    MatryList<int, size_t> itv;
-    itv = MatryList<int, size_t>();
+    std::cout << "\n SuperIntervals tests \n";
+    SuperIntervals<int, size_t> itv;
+    itv = SuperIntervals<int, size_t>();
     std::cout << "0, ";
     itv.add(10, 20, -1);
     itv.add(11, 12, -1);
@@ -187,15 +187,12 @@ void matrylistTests() {
     itv.findOverlaps(20, 90, a); assert (a.front() == 4 && a.size() == 4);
     itv.clear();
 
-    std::cout << "All tests passed for matrylist\n";
+    std::cout << "All tests passed for SuperIntervals\n";
 
 }
 
 
 int main(int argc, char *argv[]) {
-
-    matrylistTests();
-
+    superTests();
     return 0;
-
 }
