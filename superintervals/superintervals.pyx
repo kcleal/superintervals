@@ -1,41 +1,31 @@
 
-cimport matrylist
-
-from libcpp.vector cimport vector
-from cython.operator cimport dereference as deref, preincrement as inc
-
-
-
-
-cdef class matrylist:
-    cdef CppMatryList* thisptr
-    cdef vector[size_t] found
+cdef class IntervalSet:
     def __cinit__(self):
-        self.thisptr = new CppMatryList()
+        self.thisptr = new SuperIntervalsCpp()
 
     def __dealloc__(self):
-        if self.thisptr is not NULL:
+        if self.thisptr:
             del self.thisptr
 
-    def add(self, int start, int end, int value):
+    cpdef add(self, int start, int end, int value):
         self.thisptr.add(start, end, value)
 
-    def searchInterval(self, int start, int end):
+    cpdef searchInterval(self, int start, int end):
         self.thisptr.searchInterval(start, end)
 
-    def clear(self):
+    cpdef clear(self):
         self.thisptr.clear()
 
-    def reserve(self, size_t n):
+    cpdef reserve(self, size_t n):
         self.thisptr.reserve(n)
 
-    def size(self):
+    cpdef size(self):
         return self.thisptr.size()
 
-    def countOverlaps(self, int start, int end):
+    cpdef countOverlaps(self, int start, int end):
         return self.thisptr.countOverlaps(start, end)
 
-    def findOverlaps(self, int start, int end):
+    cpdef findOverlaps(self, int start, int end):
         self.found.clear()
         self.thisptr.findOverlaps(start, end, self.found)
         return [self.found[i] for i in range(self.found.size())]

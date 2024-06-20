@@ -1,0 +1,3 @@
+from superintervals import (
+    IntervalSet
+)
