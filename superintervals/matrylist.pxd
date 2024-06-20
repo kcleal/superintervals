@@ -1,7 +1,7 @@
 
 from libcpp.vector cimport vector
 
-cdef extern from "matrylist.cpp":
+cdef extern from "superintervals.cpp":
 
     cdef struct IntervalItem:
         int start, end

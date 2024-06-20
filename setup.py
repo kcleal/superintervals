@@ -1,15 +1,15 @@
 from setuptools import setup, find_packages, Extension
 
 ext_modules = [
-    Extension("matrylist.matrylist",
-              ["matrylist/matrylist.pyx"],
+    Extension("superintervals.superintervals",
+              ["superintervals/superintervals.pyx"],
               language="c++",
               extra_compile_args=["-std=c++17"])
 ]
 
 setup(
     version='0.1.1',
-    name='matrylist',
+    name='superintervals',
     description="Rapid interval intersections",
     author="Kez Cleal",
     author_email="clealk@cardiff.ac.uk",
