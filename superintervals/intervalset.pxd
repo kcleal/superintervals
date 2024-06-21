@@ -18,7 +18,10 @@ cdef extern from "superintervals.hpp":
 
     cdef cppclass SuperIntervals[int, int]:
         SuperIntervals() except +
+
+        vector[int] starts, ends, data
         void add(int start, int end, int value)
+        void index()
         void searchInterval(int start, int end)
         void clear()
         void reserve(size_t n)
@@ -29,17 +32,20 @@ cdef extern from "superintervals.hpp":
         # Iterator begin()
         # Iterator end()
 
-ctypedef SuperIntervals[int, int] SuperIntervalsCpp
 # ctypedef Iterator CppIterator
 # ctypedef IntervalItem CppIntervalItem
 
 cdef class IntervalSet:
-    cdef SuperIntervalsCpp* thisptr
+    cdef SuperIntervals* thisptr
     cdef vector[int] found
-    cpdef add(self, int start, int end, int value)
-    cpdef searchInterval(self, int start, int end)
+    cdef bint with_data
+    cdef list data
+    cdef int n_intervals
+    cpdef add(self, int start, int end, value=*)
+    cpdef index(self)
+    cpdef set_search_interval(self, int start, int end)
     cpdef clear(self)
     cpdef reserve(self, size_t n)
     cpdef size(self)
-    cpdef countOverlaps(self, int start, int end)
-    cpdef findOverlaps(self, int start, int end)
+    cpdef count_overlaps(self, int start, int end)
+    cpdef find_overlaps(self, int start, int end)

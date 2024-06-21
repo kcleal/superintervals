@@ -204,29 +204,51 @@ class SuperIntervals {
 
     void index() {
         n_intervals = intervals.size();
-        if (n_intervals < 2) {
+        if (intervals.empty()) {
             return;
         }
         starts.resize(n_intervals);
         ends.resize(n_intervals);
-        if (!branch.empty()) {
-            branch.clear();
-        }
-
+//        branch.resize(intervals.size(), SIZE_MAX);
         branch.resize(intervals.size(), 0);
 
         sortIntervals();
-        S last_end = ends[0];
-        size_t j = 1;
+
+//        std::vector<Interval&> last_end {intervals[0]};
+//        Interval& super = last_end.back();
+////        size_t j = 1;
+//        for (size_t i=1; i < ends.size() - 1; ++i) {
+//            if (ends[i] < super.end) {
+//                branch[i] = super.index;
+//                if (super.)
+//                //last_end = (ends[i] > last_end) ? ends[i] : last_end;
+//            } else if (!last_end.empty() && ends[j] < last_end.back()) {
+//                branch[j] = last_end.back();//branch[i];
+//            }
+//            ++j;
+//        }
+
+//        size_t j = 1;
+//        for (size_t i=0; i < ends.size() - 1; ++i) {
+//            if (ends[j] < ends[i]) {
+//                branch[j] = i;
+//                last_end = (ends[i] > last_end) ? ends[i] : last_end;
+//            } else if (!last_end.empty() && ends[j] < last_end.back()) {
+//                branch[j] = last_end.back();//branch[i];
+//            }
+//            ++j;
+//        }
+
+        branch.resize(intervals.size(), SIZE_MAX);
         for (size_t i=0; i < ends.size() - 1; ++i) {
-            if (ends[j] < ends[i]) {
+            for (size_t j=i + 1; j < ends.size(); ++j) {
+                if (ends[j] >= ends[i]) {
+                    break;
+                }
                 branch[j] = i;
-                last_end = (ends[i] > last_end) ? ends[i] : last_end;
-            } else if (ends[j] < last_end) {
-                branch[j] = branch[i];
             }
-            ++j;
         }
+
         idx = 0;
     }
 
@@ -255,17 +277,41 @@ class SuperIntervals {
         upperBound(end);
         size_t i = idx;
 
-        while (i != 0) {
-            if (start <= ends[i]) {
-                found.push_back(data[i]);
-                --i;
+        while (i > 0) {
+            if (start <= ends[i--]) {
+                found.push_back(i+1);
             } else {
+                if (++i; branch[i] >= i) {
+                    break;
+                }
                 i = branch[i];
             }
         }
-        if (start <= ends[0] && starts[0] <= end) {
-            found.push_back(data[0]);
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
+            found.push_back(0);
         }
+//
+//        size_t count = 0;
+//        size_t br = 0;
+//        while (i != 0) {
+////            count += 1;
+//            if (start <= ends[i]) {
+////            if (start <= ends[i] && starts[i] <= end) {
+//                found.push_back(data[i]);
+//                --i;
+//            } else {
+//                if (branch[i] < i) {
+////                    std::cout << " i=" << i << " br=" << branch[i] << std::endl;
+//                    i = branch[i];
+//
+//                }
+////                i = branch[i];
+//            }
+//        }
+//        if (start <= ends[0] && starts[0] <= end) {
+//            found.push_back(data[0]);
+//        }
+//        std::cout << "size=" << end - start << " " << count << " " << br << std::endl;
     }
 
     size_t countOverlaps(S start, S end) {
@@ -275,15 +321,19 @@ class SuperIntervals {
         upperBound(end);
         size_t found = 0;
         size_t i = idx;
-        constexpr size_t block = 32;
+
 
 #ifdef __AVX2__
         __m256i start_vec = _mm256_set1_epi32(start);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
+        constexpr size_t block = simd_width * 4;
 #elif defined __ARM_NEON
         int32x4_t start_vec = vdupq_n_s32(start);
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
+        constexpr size_t block = simd_width * 4;
+#else
+        constexpr size_t block = 16;
 #endif
 
         while (i > 0) {
@@ -335,10 +385,13 @@ class SuperIntervals {
                 }
 #endif
             } else {
+                if (branch[i] >= i) {
+                    break;
+                }
                 i = branch[i];
             }
         }
-        if (start <= ends[0] && starts[0] <= end) {
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
             ++found;
         }
         return found;

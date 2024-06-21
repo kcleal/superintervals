@@ -1,3 +1,4 @@
-from superintervals import (
+
+from superintervals.intervalset import (
     IntervalSet
 )

@@ -2,11 +2,13 @@
 /test/run-cpp-libs.dSYM/
 /test/run_tests.dSYM/
 /test/run-tests
-/superintervals/matrylist.cpp
-/test/run-tests.dSYM/
+/test/*.bed
 /build/
-/matrylist.egg-info/
 /test/bench_data/
 /test/3rd-party/coitrees/target/
 /test/intervaldb.o
-/superintervals/superintervals.cpp
+/superintervals.egg-info/
+/superintervals/intervalset.cpp
+/superintervals/intervalset.cpython-310-darwin.so
+/superintervals/intervalset.cpython-311-darwin.so
+/test/bed-intersect
