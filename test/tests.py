@@ -1,6 +1,5 @@
 import random
 import subprocess
-from sortedintersect import IntervalSet
 import time
 import quicksect
 from quicksect import Interval
@@ -15,18 +14,18 @@ import os
 
 random.seed(0)
 
-def make_random_bedtools(shuffle, n=1_000_000, l=1000):
+def make_random_bedtools(srt, l, n):
 
     with open("chr1.genome", "w") as f:
         f.write(f"chr1\t250000000")
 
     subprocess.run(f"bedtools random -g chr1.genome -l {l} -n {n} -seed 1 > a.bed", shell=True)
     subprocess.run(f"bedtools random -g chr1.genome -l {l*2} -n {n} -seed 2 >> a.bed", shell=True)
-    subprocess.run(f"bedtools random -g chr1.genome -l {20000000} -n {10} -seed 3 >> a.bed", shell=True)
+    subprocess.run(f"bedtools random -g chr1.genome -l {l*4} -n {n} -seed 3 >> a.bed", shell=True)
 
     subprocess.run(f"bedtools random -g chr1.genome -l {l} -n {n} -seed 4 > b.bed", shell=True)
     subprocess.run(f"bedtools random -g chr1.genome -l {l*2} -n {n} -seed 5 >> b.bed", shell=True)
-    subprocess.run(f"bedtools random -g chr1.genome -l {20000000} -n {10} -seed 6 >> b.bed", shell=True)
+    subprocess.run(f"bedtools random -g chr1.genome -l {l*4} -n {n} -seed 6 >> b.bed", shell=True)
 
     intervals = []
     with open("a.bed", "r") as b:
@@ -38,7 +37,7 @@ def make_random_bedtools(shuffle, n=1_000_000, l=1000):
         for line in b:
             l = line.split("\t")
             queries.append((int(l[1]), int(l[2])))
-    if not shuffle:
+    if srt:
         queries.sort()
     intervals.sort()
     # subprocess.run("rm a.bed b.bed chr1.genome", shell=True)
@@ -76,10 +75,6 @@ def run_tools(intervals, queries, shuffled):
         sitv.add(s, e, 0)
     sitv.index()
 
-    # sortedintersect
-    itv = IntervalSet(False)
-    itv.add_from_iter(intervals)
-
     # quicksect
     tree = quicksect.IntervalTree()
     for s, e in intervals:
@@ -107,17 +102,14 @@ def run_tools(intervals, queries, shuffled):
     t0 = time.time()
     v = 0
     for start, end in queries:
-        a = sitv.find_overlaps(start, end)
-        v += len(a)
+        sitv.set_search_interval(start, end)
+        for item in sitv:
+            v += 1
+        # a = sitv.find_overlaps(start, end)
+        # v += len(a)
     res.append({'library': 'superintervals-find', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)})
 
 
-    # t0 = time.time()
-    # v = 0
-    # for start, end in queries:
-    #     a = itv.search_interval(start, end)
-    #     v += len(a)
-    # res.append({'library': 'sortedintersect', 'time (s)': time.time() - t0, 'intersections': v})
     print("quicksect")
     t0 = time.time()
     v = 0
@@ -143,41 +135,24 @@ def run_tools(intervals, queries, shuffled):
         v += len(a)
     res.append({'library': 'ncls', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)})
 
-
     return pd.DataFrame.from_records(res)
 
 
-
 dfs = []
-for shuffle in (True,): #, False):
-    print("Shuffled data", shuffle)
-    print("random1")
-    intervals, queries = make_random_bedtools(shuffle, n=1_000_000, l=100)
-    res = run_tools(intervals, queries, shuffle)
+for srt in (True, False):
+    print("Sort data", srt)
+    intervals, queries = make_random_bedtools(srt, n=1_000_00, l=100)
+    res = run_tools(intervals, queries, srt)
     res["test"] = ["random1"] * len(res)
-    res["shuffle"] = [shuffle] * len(res)
+    res["sorted"] = [srt] * len(res)
     dfs.append(res)
-    # print("random2")
-    # intervals, queries = make_random_bedtools(shuffle, n=1_000_000, l=100)
-    # df2 = run_tools(intervals, queries, shuffle)
-    # df2["test"] = ["random2"] * len(df2)
-    # df2["shuffle"] = [shuffle] * len(df2)
-    # dfs.append(df2)
-
-    # print("reads+genes")
-    # intervals, queries = load_intervals(shuffle)
-    # df2 = run_tools(intervals, queries, shuffle)
-    # df2["test"] = ["reads+genes"] * len(df2)
-    # df2["shuffle"] = [shuffle] * len(df2)
-    # dfs.append(df2)
-    print()
 
 
 df = pd.concat(dfs)
 print(df.to_markdown(index=False))
 
 sns.set_palette("Set2")
-sns.catplot(kind='bar', data=df, x="shuffle", y="time (s)", hue="library", col="test", sharey=False)
-plt.show()
+sns.catplot(kind='bar', data=df, x="sorted", y="time (s)", hue="library", col="test", sharey=False)
+# plt.show()
 # plt.savefig('benchmark.png')
 

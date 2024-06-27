@@ -1,4 +1,6 @@
 
+from cython.operator cimport dereference, postincrement, preincrement
+
 
 __all__ = ["IntervalSet"]
 
@@ -35,35 +37,45 @@ cdef class IntervalSet:
     cpdef size(self):
         return self.thisptr.size()
 
+    cpdef any_overlaps(self, int start, int end):
+        return self.thisptr.anyOverlaps(start, end)
+
     cpdef count_overlaps(self, int start, int end):
         return self.thisptr.countOverlaps(start, end)
 
     cpdef find_overlaps(self, int start, int end):
         self.found.clear()
         self.thisptr.findOverlaps(start, end, self.found)
-        # return [(self.thisptr.starts[i], self.thisptr.ends[i]) for i in self.found]
         return self.found
-        # return [self.found[i] for i in range(self.found.size())]
 
-    # def __iter__(self):
-    #     return IteratorWrapper(self)
+    def __iter__(self):
+        return IteratorWrapper(self)
 
-# cdef class IteratorWrapper:
-#     cdef CppIterator* iter_ptr
-#     cdef MatryList parent
-#
-#     def __cinit__(self, MatryList parent):
-#         self.parent = parent
-#         self.iter_ptr = new CppIterator(parent.thisptr.begin())
-#
-#     def __dealloc__(self):
-#         if self.iter_ptr is not NULL:
-#             del self.iter_ptr
-#
-#     def __next__(self):
-#         cdef CppIntervalItem item = deref(self.iter_ptr)
-#         if self.iter_ptr.operator!=(self.parent.thisptr.end()):
-#             inc(self.iter_ptr)
-#             return (item.start, item.end, item.data)
-#         else:
-#             raise StopIteration()
+
+cdef class IteratorWrapper:
+    cdef SuperIntervals.Iterator * _cpp_iterator
+
+    cdef SuperIntervals * _si
+    def __cinit__(self, IntervalSet interval_set):
+        self._si = interval_set.thisptr
+        self._cpp_iterator = new CppIterator.Iterator(interval_set.thisptr, interval_set.thisptr.idx)
+
+    def __dealloc__(self):
+        del self._cpp_iterator
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        cdef CppIntervalItem item
+        cdef int start, end, data
+        if self._cpp_iterator[0] != self._cpp_iterator[0].end():
+            start = self._si.starts[self._cpp_iterator.it_index]
+            end =  self._si.ends[self._cpp_iterator.it_index]
+            data = self._si.data[self._cpp_iterator.it_index]
+            preincrement(self._cpp_iterator[0])
+            if self._cpp_iterator[0] == self._cpp_iterator[0].end():
+                raise StopIteration
+            return start, end, data
+        else:
+            raise StopIteration

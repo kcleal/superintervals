@@ -3,37 +3,48 @@ from libcpp.vector cimport vector
 
 cdef extern from "superintervals.hpp":
 
-    # cdef struct IntervalItem:
-    #     int start, end
-    #     int data
-
-    # cdef cppclass Iterator:
-    #     Iterator(const SuperIntervals[int, int] *mlist, size_t index)
-    #     IntervalItem operator*()
-    #     Iterator& operator++()
-    #     bint operator!=(const Iterator& other)
-    #     bint operator==(const Iterator& other)
-    #     Iterator begin()
-    #     Iterator end()
+    struct IntervalItem:
+        int start, end
+        int data
 
     cdef cppclass SuperIntervals[int, int]:
         SuperIntervals() except +
 
         vector[int] starts, ends, data
+        size_t idx
+
         void add(int start, int end, int value)
         void index()
         void searchInterval(int start, int end)
         void clear()
         void reserve(size_t n)
         size_t size()
+        bint anyOverlaps(int start, int end)
         size_t countOverlaps(int start, int end)
         void findOverlaps(int start, int end, vector[int]& found)
+
+        cppclass const_iterator
+        cppclass Iterator:
+            Iterator(const SuperIntervals * list, size_t index)
+            IntervalItem operator *() const
+            Iterator& operator++()
+            bint operator !=(const Iterator& other) const
+            bint operator ==(const Iterator& other) const
+            Iterator begin() const
+            Iterator end() const
+
+            size_t it_index
+
+        Iterator begin() const
+        Iterator end() const
 
         # Iterator begin()
         # Iterator end()
 
-# ctypedef Iterator CppIterator
-# ctypedef IntervalItem CppIntervalItem
+
+ctypedef SuperIntervals.Iterator CppIterator
+ctypedef SuperIntervals.IntervalItem CppIntervalItem
+
 
 cdef class IntervalSet:
     cdef SuperIntervals* thisptr
@@ -47,5 +58,6 @@ cdef class IntervalSet:
     cpdef clear(self)
     cpdef reserve(self, size_t n)
     cpdef size(self)
+    cpdef any_overlaps(self, int start, int end)
     cpdef count_overlaps(self, int start, int end)
     cpdef find_overlaps(self, int start, int end)

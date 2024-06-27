@@ -46,66 +46,6 @@ class SuperIntervals {
 
     ~SuperIntervals() = default;
 
-    struct IntervalItem {
-        S start, end;
-        T data;
-    };
-    class Iterator {
-    public:
-        Iterator(const SuperIntervals* list, size_t index) : super(list) {
-            _start = list->it_low;
-            _end = list->it_high;
-            it_index = index;
-        }
-        typename SuperIntervals::IntervalItem operator*() const {
-            return typename SuperIntervals<S, T>::IntervalItem{super->starts[it_index], super->ends[it_index], super->data[it_index]};
-        }
-        Iterator& operator++() {
-            if (it_index == 0) {
-                it_index = static_cast<size_t>(-1);
-                return *this;
-            }
-            if (it_index > 0) {
-                if (_start <= super->ends[it_index]) {
-                    --it_index;
-                } else {
-                    if (super->branch[it_index] >= it_index) {
-                        it_index = 0;
-                        return *this;
-                    }
-                    it_index = super->branch[it_index];
-                    if (_start <= super->ends[it_index]) {
-                        --it_index;
-                    } else {
-                        it_index = 0;
-                        return *this;
-                    }
-                }
-            }
-            return *this;
-        }
-        bool operator!=(const Iterator& other) const {
-            return it_index != other.it_index;
-        }
-        bool operator==(const Iterator& other) const {
-            return it_index == other.it_index;
-        }
-        Iterator begin() const { return Iterator(super, super->idx); }
-        Iterator end() const { return Iterator(super, 0); }
-    private:
-        S _start, _end;
-        const SuperIntervals<S, T>* super;
-        size_t it_index;
-    };
-
-    Iterator begin() const { return Iterator(this, idx); }
-    Iterator end() const { return Iterator(this, 0); }
-
-    void searchInterval(S start, S end) {
-        it_low = start; it_high = end;
-        upperBound(end);
-    }
-
     void clear() {
         intervals.clear(); data.clear(); starts.clear(); ends.clear(); branch.clear(); idx = 0;
     }
@@ -199,51 +139,43 @@ class SuperIntervals {
 
         sortIntervals();
 
-//        std::vector<Interval&> last_end {intervals[0]};
-//        Interval& super = last_end.back();
-////        size_t j = 1;
-//        for (size_t i=1; i < ends.size() - 1; ++i) {
-//            if (ends[i] < super.end) {
-//                branch[i] = super.index;
-//                if (super.)
-//                //last_end = (ends[i] > last_end) ? ends[i] : last_end;
-//            } else if (!last_end.empty() && ends[j] < last_end.back()) {
-//                branch[j] = last_end.back();//branch[i];
-//            }
-//            ++j;
-//        }
-
-//        size_t j = 1;
-//        for (size_t i=0; i < ends.size() - 1; ++i) {
-//            if (ends[j] < ends[i]) {
-//                branch[j] = i;
-//                last_end = (ends[i] > last_end) ? ends[i] : last_end;
-//            } else if (!last_end.empty() && ends[j] < last_end.back()) {
-//                branch[j] = last_end.back();//branch[i];
-//            }
-//            ++j;
-//        }
-
-
 //        std::vector<int> counts(intervals.size(), 0);
 //        int max = 0;
-        branch.resize(intervals.size(), SIZE_MAX);
-        for (size_t i=0; i < ends.size() - 1; ++i) {
-            for (size_t j=i + 1; j < ends.size(); ++j) {
-                if (ends[j] >= ends[i]) {
-                    break;
-                }
-                branch[j] = i;
-//                counts[j] += 1;
-//                if (counts[j] > max) {
-//                    max = counts[j];
+//        branch.resize(intervals.size(), SIZE_MAX);
+//        for (size_t i=0; i < ends.size() - 1; ++i) {
+//            for (size_t j=i + 1; j < ends.size(); ++j) {
+//                if (ends[j] >= ends[i]) {
+//                    break;
 //                }
-            }
-        }
+//                branch[j] = i;
+////                counts[j] += 1;
+////                if (counts[j] > max) {
+////                    max = counts[j];
+////                }
+//            }
+//        }
 
-//        std::cout << "Max branch: " << max << std::endl;
+        // Linear construction, but slower for most cases!
+        branch.resize(intervals.size(), SIZE_MAX);
+        std::vector<std::pair<S, size_t>> br;
+        br.reserve(1000);
+        br.emplace_back() = {ends[0], 0};
+        for (size_t i=1; i < ends.size(); ++i) {
+            while (!br.empty() && br.back().first < ends[i]) {
+                br.pop_back();
+            }
+            if (!br.empty()) {
+                branch[i] = br.back().second;
+            }
+            br.emplace_back() = {ends[i], i};
+        }
         idx = 0;
     }
+
+    struct IntervalItem {
+        S start, end;
+        T data;
+    };
 
     IntervalItem at(size_t index) {
         return IntervalItem(starts[index], ends[index], data[index]);
@@ -255,11 +187,76 @@ class SuperIntervals {
         itv.data = data[index];
     }
 
+    class Iterator {
+    public:
+        size_t it_index;
+
+        Iterator(const SuperIntervals* list, size_t index) : super(list) {
+            _start = list->it_low;
+            _end = list->it_high;
+            it_index = index;
+        }
+        typename SuperIntervals::IntervalItem operator*() const {
+            return typename SuperIntervals<S, T>::IntervalItem{super->starts[it_index], super->ends[it_index], super->data[it_index]};
+        }
+        Iterator& operator++() {
+            if (it_index == 0) {
+                it_index = SIZE_MAX;
+                return *this;
+            }
+            if (it_index > 0) {
+                if (_start <= super->ends[it_index]) {
+                    --it_index;
+//                    if (_start > super->ends[it_index]) {
+//                        it_index = SIZE_MAX;
+//                    }
+                } else {
+                    if (super->branch[it_index] >= it_index) {
+                        it_index = SIZE_MAX;
+                        return *this;
+                    }
+                    it_index = super->branch[it_index];
+                    if (_start <= super->ends[it_index]) {
+                        --it_index;
+//                        if (_start > super->ends[it_index]) {
+//                            it_index = SIZE_MAX;
+//                        }
+                    } else {
+                        it_index = SIZE_MAX;
+                        return *this;
+                    }
+                }
+            }
+            return *this;
+        }
+        bool operator!=(const Iterator& other) const {
+            return it_index != other.it_index;
+        }
+        bool operator==(const Iterator& other) const {
+            return it_index == other.it_index;
+        }
+        Iterator begin() const { return Iterator(super, super->idx); }
+        Iterator end() const { return Iterator(super, SIZE_MAX); }
+    private:
+        S _start, _end;
+        const SuperIntervals<S, T>* super;
+
+    };
+
+    Iterator begin() const { return Iterator(this, idx); }
+    Iterator end() const { return Iterator(this, 0); }
+
+    void searchInterval(S start, S end) {
+        it_low = start; it_high = end;
+        upperBound(end);
+        if (start > ends[idx] || starts[0] > end) {
+            idx = SIZE_MAX;
+        }
+    }
+
     inline void upperBound(S value) {  // https://github.com/mh-dm/sb_lower_bound/blob/master/sbpm_lower_bound.h
         size_t length = n_intervals;
         idx = 0;
-
-        // Sized to roughly fit in L2 cache
         constexpr int entries_per_256KB = 256 * 1024 / sizeof(S);
         if (length >= entries_per_256KB) {
             constexpr int num_per_cache_line = std::max(64 / int(sizeof(S)), 1);
@@ -296,33 +293,6 @@ class SuperIntervals {
         }
         upperBound(end);
         size_t i = idx;
-
-//        int found_start = i;
-//        int found_end = found_start;
-//        while (i > 0) {
-//            if (start <= ends[i--]) {
-//                --found_start;
-//            } else {
-//                if (++i; branch[i] >= i) {
-//                    break;
-//                }
-//
-//                i = branch[i];
-//
-//                if (found_start != found_end) {
-//                    std::generate_n(std::back_inserter(found),
-//
-//                    found_start - found_end, [n = found_end]() mutable { return n--; });
-//                }
-//                found_start = i;
-//                found_end = i;
-//            }
-//        }
-//        if (found_start != found_end) {
-//            std::generate_n(std::back_inserter(found),
-//            found_start - found_end, [n = found_end]() mutable { return n--; });
-//        }
-
         while (i > 0) {
             if (start <= ends[i--]) {
                 found.push_back(i+1);
@@ -331,12 +301,12 @@ class SuperIntervals {
                     break;
                 }
                 i = branch[i];
+                __builtin_prefetch(&ends[i]);
             }
         }
         if (i==0 && start <= ends[0] && starts[0] <= end) {
             found.push_back(0);
         }
-
     }
 
     size_t countOverlaps(S start, S end) {
