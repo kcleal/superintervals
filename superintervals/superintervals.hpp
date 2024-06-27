@@ -130,25 +130,13 @@ class SuperIntervals {
         ++n_intervals;
     }
 
-    inline void upperBound(S value) {  // https://academy.realm.io/posts/how-we-beat-cpp-stl-binary-search/
-        size_t size = n_intervals;
-        idx = 0;
-        while (size > 0) {
-            size_t half = size / 2;
-            size_t other_half = size - half;
-            size_t probe = idx + half;
-            size_t other_low = idx + other_half;
-            S v = starts[probe];
-            size = half;
-            idx = v <= value ? other_low : idx;
-        }
-        if (idx > 0 && (idx == n_intervals || starts[idx] > value)) {
-            --idx;
-        }
-    }
-
     void sortIntervals() {
         size_t i;
+        if (intervals.size() <= 1) {
+            startSorted = true;
+            endSorted = true;
+            return;
+        }
         if (!startSorted) {
             std::sort(intervals.begin(), intervals.end(),
             [](const Interval& a, const Interval& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
@@ -165,24 +153,23 @@ class SuperIntervals {
             std::vector<T> data_copy = data;
             auto it_start = intervals.begin();
             while (it_start != intervals.end()) {
-                auto block_start = it_start;
                 auto block_end = it_start + 1;
                 bool srt = false;
-                while (block_end != intervals.end() && block_end->start == block_start->start) {
+                while (block_end != intervals.end() && block_end->start == it_start->start) {
                     if (block_end->end > (block_end - 1)->end) {
                         srt = true;
                     }
                     ++block_end;
                 }
                 if (srt) {
-                    std::sort(block_start, block_end, [](const Interval& a, const Interval& b) { return a.end > b.end; });
-                    i = std::distance(intervals.begin(), block_start);
-                    while (true) {
-                        data[i++] = data_copy[block_start->index];
-                        if (block_start == block_end) {
+                    std::sort(it_start, block_end, [](const Interval& a, const Interval& b) { return a.end > b.end; });
+                    i = std::distance(intervals.begin(), it_start);
+                    while (it_start != intervals.end()) {
+                        data[i++] = data_copy[it_start->index];
+                        if (it_start == block_end) {
                             break;
                         }
-                        ++block_start;
+                        ++it_start;
                     }
                 }
                 it_start = block_end;
@@ -209,8 +196,6 @@ class SuperIntervals {
         }
         starts.resize(n_intervals);
         ends.resize(n_intervals);
-//        branch.resize(intervals.size(), SIZE_MAX);
-        branch.resize(intervals.size(), 0);
 
         sortIntervals();
 
@@ -239,6 +224,9 @@ class SuperIntervals {
 //            ++j;
 //        }
 
+
+//        std::vector<int> counts(intervals.size(), 0);
+//        int max = 0;
         branch.resize(intervals.size(), SIZE_MAX);
         for (size_t i=0; i < ends.size() - 1; ++i) {
             for (size_t j=i + 1; j < ends.size(); ++j) {
@@ -246,9 +234,14 @@ class SuperIntervals {
                     break;
                 }
                 branch[j] = i;
+//                counts[j] += 1;
+//                if (counts[j] > max) {
+//                    max = counts[j];
+//                }
             }
         }
 
+//        std::cout << "Max branch: " << max << std::endl;
         idx = 0;
     }
 
@@ -260,6 +253,33 @@ class SuperIntervals {
         itv.start = starts[index];
         itv.end = ends[index];
         itv.data = data[index];
+    }
+
+    inline void upperBound(S value) {  // https://github.com/mh-dm/sb_lower_bound/blob/master/sbpm_lower_bound.h
+        size_t length = n_intervals;
+        idx = 0;
+
+        // Sized to roughly fit in L2 cache
+        constexpr int entries_per_256KB = 256 * 1024 / sizeof(S);
+        if (length >= entries_per_256KB) {
+            constexpr int num_per_cache_line = std::max(64 / int(sizeof(S)), 1);
+            while (length >= 3 * num_per_cache_line) {
+                size_t half = length / 2;
+                __builtin_prefetch(&starts[idx + half / 2]);
+                size_t first_half1 = idx + (length - half);
+                __builtin_prefetch(&starts[first_half1 + half / 2]);
+                idx += (starts[idx + half] <= value) * (length - half);
+                length = half;
+            }
+        }
+        while (length > 0) {
+            size_t half = length / 2;
+            idx += (starts[idx + half] <= value) * (length - half);
+            length = half;
+        }
+        if (idx > 0 && (idx == n_intervals || starts[idx] > value)) {
+            --idx;
+        }
     }
 
     bool anyOverlaps(S start, S end) {
@@ -277,6 +297,32 @@ class SuperIntervals {
         upperBound(end);
         size_t i = idx;
 
+//        int found_start = i;
+//        int found_end = found_start;
+//        while (i > 0) {
+//            if (start <= ends[i--]) {
+//                --found_start;
+//            } else {
+//                if (++i; branch[i] >= i) {
+//                    break;
+//                }
+//
+//                i = branch[i];
+//
+//                if (found_start != found_end) {
+//                    std::generate_n(std::back_inserter(found),
+//
+//                    found_start - found_end, [n = found_end]() mutable { return n--; });
+//                }
+//                found_start = i;
+//                found_end = i;
+//            }
+//        }
+//        if (found_start != found_end) {
+//            std::generate_n(std::back_inserter(found),
+//            found_start - found_end, [n = found_end]() mutable { return n--; });
+//        }
+
         while (i > 0) {
             if (start <= ends[i--]) {
                 found.push_back(i+1);
@@ -290,28 +336,7 @@ class SuperIntervals {
         if (i==0 && start <= ends[0] && starts[0] <= end) {
             found.push_back(0);
         }
-//
-//        size_t count = 0;
-//        size_t br = 0;
-//        while (i != 0) {
-////            count += 1;
-//            if (start <= ends[i]) {
-////            if (start <= ends[i] && starts[i] <= end) {
-//                found.push_back(data[i]);
-//                --i;
-//            } else {
-//                if (branch[i] < i) {
-////                    std::cout << " i=" << i << " br=" << branch[i] << std::endl;
-//                    i = branch[i];
-//
-//                }
-////                i = branch[i];
-//            }
-//        }
-//        if (start <= ends[0] && starts[0] <= end) {
-//            found.push_back(data[0]);
-//        }
-//        std::cout << "size=" << end - start << " " << count << " " << br << std::endl;
+
     }
 
     size_t countOverlaps(S start, S end) {
@@ -321,7 +346,6 @@ class SuperIntervals {
         upperBound(end);
         size_t found = 0;
         size_t i = idx;
-
 
 #ifdef __AVX2__
         __m256i start_vec = _mm256_set1_epi32(start);
