@@ -6,6 +6,8 @@ from quicksect import Interval
 from ncls import NCLS
 import cgranges as cr
 from superintervals import IntervalSet as superIntervalSet
+import superintervals
+print(superintervals.__file__)
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -17,15 +19,22 @@ random.seed(0)
 def make_random_bedtools(srt, l, n):
 
     with open("chr1.genome", "w") as f:
-        f.write(f"chr1\t250000000")
+        # f.write(f"chr1\t250000000")
+        f.write(f"chr1\t10000000")  # 10 Mb
 
-    subprocess.run(f"bedtools random -g chr1.genome -l {l} -n {n} -seed 1 > a.bed", shell=True)
-    subprocess.run(f"bedtools random -g chr1.genome -l {l*2} -n {n} -seed 2 >> a.bed", shell=True)
-    subprocess.run(f"bedtools random -g chr1.genome -l {l*4} -n {n} -seed 3 >> a.bed", shell=True)
+    subprocess.run(f"bedtools random -g chr1.genome -l 100 -n 1000000 -seed 1 > a.bed", shell=True)
+    subprocess.run(f"bedtools random -g chr1.genome -l 50 -n 1000000 -seed 2 >> a.bed", shell=True)
+    # subprocess.run(f"bedtools random -g chr1.genome -l 1000000 -n 100 -seed 3 >> a.bed", shell=True)
+
+
+
+    # subprocess.run(f"bedtools random -g chr1.genome -l {l} -n {n} -seed 1 > a.bed", shell=True)
+    # subprocess.run(f"bedtools random -g chr1.genome -l {l*2} -n {n} -seed 2 >> a.bed", shell=True)
+    # subprocess.run(f"bedtools random -g chr1.genome -l {l*4} -n {n} -seed 3 >> a.bed", shell=True)
 
     subprocess.run(f"bedtools random -g chr1.genome -l {l} -n {n} -seed 4 > b.bed", shell=True)
-    subprocess.run(f"bedtools random -g chr1.genome -l {l*2} -n {n} -seed 5 >> b.bed", shell=True)
-    subprocess.run(f"bedtools random -g chr1.genome -l {l*4} -n {n} -seed 6 >> b.bed", shell=True)
+    # subprocess.run(f"bedtools random -g chr1.genome -l {l*2} -n {n} -seed 5 >> b.bed", shell=True)
+    # subprocess.run(f"bedtools random -g chr1.genome -l {l*4} -n {n} -seed 6 >> b.bed", shell=True)
 
     intervals = []
     with open("a.bed", "r") as b:
@@ -42,6 +51,22 @@ def make_random_bedtools(srt, l, n):
     intervals.sort()
     # subprocess.run("rm a.bed b.bed chr1.genome", shell=True)
     print("Made test intervals")
+    return np.array(intervals), np.array(queries)
+
+
+def make_worst_case(tower_size):
+    # intervals = [(0, 100_000_000)]
+    intervals = []
+    s = 200_000
+    e = 200_001
+    for i in range(tower_size):
+        intervals.append((s, e))
+        s -= 100
+        e += 100
+    intervals.sort()
+    queries = []
+    for i in range(1):
+        queries.append((i + 1_000_000, i + 1_000_000 + 1000))
     return np.array(intervals), np.array(queries)
 
 
@@ -91,26 +116,24 @@ def run_tools(intervals, queries, shuffled):
     ends = pd.Series(intervals[:, 1])
     treencls = NCLS(starts, ends, starts)
 
-    print("Interval sets constructed")
-    print("superintervals-count")
+
     t0 = time.time()
     v = 0
     for start, end in queries:
         v += sitv.count_overlaps(start, end)
     res.append({'library': 'superintervals-count', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)})
-    print("superintervals-find")
+
     t0 = time.time()
     v = 0
     for start, end in queries:
-        sitv.set_search_interval(start, end)
-        for item in sitv:
-            v += 1
-        # a = sitv.find_overlaps(start, end)
-        # v += len(a)
+        # sitv.set_search_interval(start, end)
+        # for item in sitv:
+        #     v += 1
+        a = sitv.find_overlaps(start, end)
+        v += len(a)
     res.append({'library': 'superintervals-find', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)})
+    # return pd.DataFrame.from_records(res)
 
-
-    print("quicksect")
     t0 = time.time()
     v = 0
     for start, end in queries:
@@ -119,15 +142,13 @@ def run_tools(intervals, queries, shuffled):
         v += len(a)
     res.append({'library': 'quicksect', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)})
 
-    print("cgranges")
     t0 = time.time()
     v = 0
     for start, end in queries:
         a = list(cg.overlap("1", start, end+1))
         v += len(a)
-    res.append({'library': 'cgranges', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)})
+    res.append({'library': 'cgranges', 'time (s)': time.time() - t0, 'intersections': v, 'queries': len(queries)}) #, 'extra': extra})
 
-    print("ncls")
     t0 = time.time()
     v = 0
     for start, end in queries:
@@ -141,18 +162,30 @@ def run_tools(intervals, queries, shuffled):
 dfs = []
 for srt in (True, False):
     print("Sort data", srt)
-    intervals, queries = make_random_bedtools(srt, n=1_000_00, l=100)
-    res = run_tools(intervals, queries, srt)
-    res["test"] = ["random1"] * len(res)
-    res["sorted"] = [srt] * len(res)
-    dfs.append(res)
+    # intervals, queries = make_random_bedtools(srt, n=1_000_000, l=100)
+
+    for t in range(5, 1000, 5):
+        for j in range(20):
+            intervals, queries = make_worst_case(t)
+
+            res = run_tools(intervals, queries, srt)
+            res["test"] = ["random1"] * len(res)
+            res["sorted"] = [srt] * len(res)
+            res["tower"] = [t] * len(res)
+            dfs.append(res)
+    break
 
 
 df = pd.concat(dfs)
-print(df.to_markdown(index=False))
+# print(df.to_markdown(index=False))
+sns.set_palette("Set2")
+sns.lineplot(data=df, x="tower", y="time (s)", hue="library")
+plt.ylim(0, 0.5e-5)
+plt.show()
+quit()
 
 sns.set_palette("Set2")
 sns.catplot(kind='bar', data=df, x="sorted", y="time (s)", hue="library", col="test", sharey=False)
-# plt.show()
+plt.show()
 # plt.savefig('benchmark.png')
 

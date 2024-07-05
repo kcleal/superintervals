@@ -9,7 +9,6 @@ ext_modules = [
 ]
 
 setup(
-    version='0.1.1',
     name='superintervals',
     description="Rapid interval intersections",
     author="Kez Cleal",

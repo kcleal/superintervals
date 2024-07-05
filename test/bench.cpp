@@ -18,6 +18,7 @@ extern "C" {
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
 using std::chrono::duration;
+using std::chrono::microseconds;
 using std::chrono::milliseconds;
 
 
@@ -28,6 +29,26 @@ struct BedInterval {
 
 size_t uSec(high_resolution_clock::time_point& t0) {
     return duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
+}
+
+void branch_factor(double& avg, double& max_count, std::vector<int>& ends) {
+    std::vector<int> counts(ends.size(), 0);
+    for (size_t i=0; i < ends.size() - 1; ++i) {
+        for (size_t j=i + 1; j < ends.size(); ++j) {
+            if (ends[j] >= ends[i]) {
+                break;
+            }
+            counts[j] += 1;
+        }
+    }
+    double sum_count = 0;
+    for (const auto &v : counts) {
+        if (v > max_count) {
+            max_count = (double)v;
+        }
+        sum_count += (double)v;
+    }
+    avg = sum_count / (double)counts.size();
 }
 
 void load_intervals(const std::string& intervals_file,
@@ -70,7 +91,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     size_t found, index;
     high_resolution_clock::time_point t0, t1;
     std::vector<size_t> a, b;
-    std::unordered_map<size_t, size_t> found_indexes, found_indexes2;
+    a.reserve(10000); b.reserve(10000);
 
     std::cout << "SuperIntervals\t";
     SuperIntervals<int, size_t> itv;
@@ -83,14 +104,15 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         index += 1;
     }
     itv.index();
+
     std::cout << uSec(t0) << "\t";  // construct
+
     found = 0;
-//    index = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
         itv.findOverlaps(item.start, item.end - 1, a);
-//        found_indexes[index] = a.size(); index += 1;
         found += a.size();
+        a.clear();
     }
     std::cerr << uSec(t1) << "\t" << found << "\t";  // find all overlapping
 
@@ -100,6 +122,11 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         found += itv.countOverlaps(item.start, item.end - 1);
     }
     std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
+//    return;
+//    double avg = 0;
+//    double mc = 0;
+//    branch_factor(avg, mc, itv.ends);
+//    std::cout << avg << " " << mc << std::endl;
 
     std::cout << "ImplicitITree\t";
     t0 = high_resolution_clock::now();
@@ -140,15 +167,9 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
         std::vector<interval_tree::Interval<int, int>> result = tree2.findOverlapping(item.start, item.end - 1);
-//        found_indexes2[index] = result.size(); index += 1;
         found += result.size();
     }
     std::cerr << uSec(t1) << "\t" << found << std::endl;
-
-//    for (const auto& kv : found_indexes) {
-//        if (kv.second != found_indexes2[kv.first])
-//        std::cout << kv.first << " " << kv.second << ", " << found_indexes2[kv.second] << std::endl;
-//    }
 
     std::cout << "NestedContList\t";
     t0 = high_resolution_clock::now();
@@ -175,35 +196,27 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     IntervalIterator *it_alloc;
     IntervalMap im_buf[1024];
     found = 0;
-//    index = 0;
     for (const auto& item : queries) {
         it_alloc = interval_iterator_alloc();
         it = it_alloc;
-//        size_t c_tmp = 0;
         while(it){
             find_intervals(it, item.start, item.end, im, *p_n, sh, *p_nlists, im_buf, 1024, nhits, &it);
             found += *nhits;
-//            c_tmp += *nhits;
         }
-//        found_indexes2[index] = c_tmp; index += 1;
         free_interval_iterator(it_alloc);
     }
     std::cerr << uSec(t1) << "\t" << found << std::endl;
 
-//    for (const auto& kv : found_indexes) {
-//        if (kv.second != found_indexes2[kv.first])
-//        std::cout << kv.first << " " << kv.second << ", " << found_indexes2[kv.second] << std::endl;
-//    }
 }
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
-		printf("Usage: run-cpp-libs <loaded.bed> <streamed.bed>\n");
+		printf("Usage: run-cpp-libs <reference.bed> <query.bed>\n");
 		return 0;
 	}
     std::vector<BedInterval> intervals;
     std::vector<BedInterval> queries;
 
-    load_intervals(std::string(argv[1]), std::string(argv[2]), intervals, queries);
+    load_intervals(std::string(argv[1]), argv[2], intervals, queries);
     run_tools(intervals, queries);
 }

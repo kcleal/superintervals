@@ -8,6 +8,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "superintervals"
-version = "0.1.1"
+version = "0.1.2"
 description = "Rapid interval intersections"
 authors = [{name = "Kez Cleal", email = "clealk@cardiff.ac.uk"}]

@@ -5,7 +5,7 @@ INCLUDE= -I../superintervals -I./3rd-party
 # GCC use -ftree-vectorize -fopt-info-vec-optimized
 
 # to build coitrees use:
-# cd 3rd-party/coitrees; cargo run --release --example bed-intersect
+# cd 3rd-party/coitrees; RUSTFLAGS="-Ctarget-cpu=native" cargo run --release --example bed-intersect
 
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address

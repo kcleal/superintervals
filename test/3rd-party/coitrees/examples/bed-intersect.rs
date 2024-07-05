@@ -111,50 +111,48 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     let file = File::open(filename_b)?;
     let mut rdr = BufReader::new(file);
 
-    // Change the vector to store i32 instead of usize
     let mut ranges: Vec<(i32, i32)> = Vec::new();
     let mut line = Vec::new();
 
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (_, first, last) = parse_bed_line(&line);
-        ranges.push((first, last)); // Store the coordinates as i32 directly
+        ranges.push((first, last));
         line.clear();
     }
-    let seqname_tree = tree.get("chr1");
 
+    let seqname_tree = tree.get("chr1").ok_or("Chromosome tree not found")?;
+
+    // Count overlaps
     let now = Instant::now();
-    let mut total_count: usize = 0;
+    let total_count: usize = ranges.iter()
+        .map(|&(first, last)| seqname_tree.query_count(first, last))
+        .sum();
+    let count_elapsed = now.elapsed();
+    println!("Total count: {}, Count Time taken: {:?}", total_count, count_elapsed);
 
-    if let Some(seqname_tree) = seqname_tree {
-        for &(first, last) in &ranges {
-             total_count += seqname_tree.query_count(first, last); // Query without fetching tree each time
-        }
-    } else {
-        // Handle the case where the chromosome tree is not found
-        return Err("Chromosome tree not found".into());
+    // Find overlaps (collecting results)
+    let now = Instant::now();
+    let mut total_found = 0;
+
+    let mut results = Vec::new();
+    results.reserve(10000);
+    for &(first, last) in &ranges {
+//         let mut found = 0;
+        seqname_tree.query(first, last, |node| {
+            results.push(node.metadata);
+//                 found += 1;
+        });
+//         results.push(found);
+        total_found += results.len();
+        results.clear();
+
     }
 
-    let elapsed = now.elapsed();
-    println!("Total count: {}, Count Time taken: {:?}", total_count, elapsed);
-    total_count = 0;
-    let now2 = Instant::now();
-    if let Some(seqname_tree) = seqname_tree {
-        for &(first, last) in &ranges {
-            let mut count = 0;
-            seqname_tree.query(first, last, |_| count +=1);
-            total_count += count;
-        }
-    } else {
-        // Handle the case where the chromosome tree is not found
-        return Err("Chromosome tree not found".into());
-    }
-
-    let elapsed = now2.elapsed();
-    println!("Total count: {}, Find Time taken: {:?}", total_count, elapsed);
+    let find_elapsed = now.elapsed();
+    println!("Total found: {}, Find Time taken: {:?}", total_found, find_elapsed);
 
     Ok(())
 }
-
 
 fn query_bed_files_with_sorted_querent(
     filename_a: &str,
