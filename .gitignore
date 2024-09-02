@@ -13,3 +13,9 @@
 /superintervals/intervalset.cpython-311-darwin.so
 /test/bed-intersect
 /superintervals/superintervals.cpp
+
+
+# Added by cargo
+
+/target
+/test/bed-intersect-si

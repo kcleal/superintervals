@@ -150,7 +150,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         found += b.size();
     }
     std::cout << uSec(t1) << "\t" << found << std::endl;
-
+    return;
 
     std::cout << "IntervalTree\t";
     std::vector<interval_tree::Interval<int, int>> intervals2;

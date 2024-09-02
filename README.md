@@ -8,6 +8,17 @@ A novel superset-index is utilised to speed up intersection
 queries. Counting of interval intersections uses AVX2/Neon 
 intrinsics if available.
 
+Compile test programs
+---------------------
+
+Cpp programs
+
+`cd test; make`
+
+Rust program:
+
+`RUSTFLAGS="-Ctarget-cpu=native" cargo run --release --example bed-intersect-si`
+
 Python usage
 ------------
 Install using `pip install superintervals`

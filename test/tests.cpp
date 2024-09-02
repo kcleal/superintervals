@@ -7,18 +7,17 @@
 
 void print_vec(std::vector<size_t>& a, SuperIntervals<int, int>& itv) {
     std::cout << " Found:\n";
-    for (auto item : a) {
-        std::cout << item << " - " << itv.intervals[item].start << " " << itv.intervals[item].end << std::endl;
+    for (auto i : a) {
+        std::cout << i << " - " << itv.starts[i] << " " << itv.ends[i] << std::endl;
     }
 }
 
 
 void superTests() {
-    std::vector<size_t> a;
+    std::vector<int> a;
 
     std::cout << "\n SuperIntervals tests \n";
-    SuperIntervals<int, size_t> itv;
-    itv = SuperIntervals<int, size_t>();
+    auto itv = SuperIntervals<int, int>();
     std::cout << "0, ";
     itv.add(10, 20, 0);
     itv.add(11, 12, -1);
@@ -28,7 +27,7 @@ void superTests() {
     itv.index();
     itv.findOverlaps(17, 30, a);
     assert (a[0] == 4); assert (a[1] == 0);
-    itv.clear();
+    itv.clear(); a.clear();
 
     std::cout << "1, ";
     itv.add(1, 2, 0);
@@ -48,7 +47,7 @@ void superTests() {
     itv.index();
     itv.findOverlaps(17, 21, a);
     assert (a[0] == 7); assert (a[1] == 3);
-    itv.clear();
+    itv.clear(); a.clear();
 
     std::cout << "2, ";
     itv.add(0, 250000000, 0);
@@ -71,8 +70,8 @@ void superTests() {
     itv.add(2515, 3515, -1);
     itv.index();
     itv.findOverlaps(1377, 2377, a);
-    itv.clear();
     assert (a.back() == 0 && a.size() == 12);
+    itv.clear(); a.clear();
 
     std::cout << "3, ";
     itv.add(0, 400, 0);
@@ -88,8 +87,8 @@ void superTests() {
     itv.add(58, 59, 7);
     itv.index();
     itv.findOverlaps(1, 5, a);
-    itv.clear();
     assert (a.back() == 0 && a.size() == 3);
+    itv.clear(); a.clear();
 
     std::cout << "4, ";
     itv.add(1, 6100000, 0);
@@ -99,8 +98,8 @@ void superTests() {
     itv.add(11, 12, 7);
     itv.index();
     itv.findOverlaps(2, 25, a);
-    itv.clear();
     assert (a.back() == 0 && a.size() == 5);
+    itv.clear(); a.clear();
 
     std::cout << "5, ";
     itv.add(1, 100, 0);
@@ -109,8 +108,8 @@ void superTests() {
     itv.add(60, 70, 7);
     itv.index();
     itv.findOverlaps(55, 65, a);
-    itv.clear();
     assert (a.back() == 0 && a.size() == 3);
+    itv.clear(); a.clear();
 
     std::cout << "6, ";
     itv.add(10, 1001, 0);
@@ -119,8 +118,8 @@ void superTests() {
     itv.add(65, 80, 3);
     itv.index();
     itv.findOverlaps(100, 200, a);
-    itv.clear();
     assert (a.back() == 0 && a.size() == 3);
+    itv.clear(); a.clear();
 
     std::cout << "7, ";
     itv.add(3, 40, 0);
@@ -129,8 +128,8 @@ void superTests() {
     itv.add(22, 24, 6);
     itv.index();
     itv.findOverlaps(31, 32, a);
-    itv.clear();
     assert (a.back() == 0 && a.size() == 1);
+    itv.clear(); a.clear();
 
     std::cout << "8, ";
     itv.add(3, 40, 0);
@@ -139,10 +138,10 @@ void superTests() {
     itv.add(10, 31, 5);
     itv.add(31, 32, 5);
     itv.index();
-    itv.findOverlaps(31, 32, a); assert (a.back() == 0 && a.size() == 3);
-    itv.findOverlaps(10, 11, a); assert (a.back() == 0 && a.size() == 2);
-    itv.findOverlaps(8, 40, a); assert (a.back() == 0 && a.size() == 3);
-    itv.findOverlaps(4, 7, a); assert (a.back() == 0 && a.size() == 3);
+    itv.findOverlaps(31, 32, a); assert (a.back() == 0 && a.size() == 3); a.clear();
+    itv.findOverlaps(10, 11, a); assert (a.back() == 0 && a.size() == 2); a.clear();
+    itv.findOverlaps(8, 40, a); assert (a.back() == 0 && a.size() == 3); a.clear();
+    itv.findOverlaps(4, 7, a); assert (a.back() == 0 && a.size() == 3); a.clear();
     itv.clear();
 
     std::cout << "9, ";
@@ -154,9 +153,9 @@ void superTests() {
     itv.add(40, 400, 5);
     itv.add(40, 400, 4);
     itv.index();
-    itv.findOverlaps(38, 41, a); assert (a.back() == 0 && a.size() == 6);
-    itv.findOverlaps(41, 42, a); assert (a.back() == 4 && a.size() == 3);
-    itv.findOverlaps(339, 410, a); assert (a.back() == 5 && a.size() == 2);
+    itv.findOverlaps(38, 41, a); assert (a.back() == 0 && a.size() == 6); a.clear();
+    itv.findOverlaps(41, 42, a); assert (a.back() == 4 && a.size() == 3); a.clear();
+    itv.findOverlaps(339, 410, a); assert (a.back() == 5 && a.size() == 2); a.clear();
     itv.clear();
 
     std::cout << "10, ";
@@ -174,7 +173,7 @@ void superTests() {
     itv.add(150, 250, 11);
     itv.index();
     itv.findOverlaps(95, 105, a); assert (a.front() == 8 && a.size() == 5);
-    itv.clear();
+    itv.clear(); a.clear();
 
     std::cout << "11, ";
     itv.add(1, 100, 7);
@@ -185,20 +184,59 @@ void superTests() {
     itv.add(100, 200, 11);
     itv.index();
     itv.findOverlaps(20, 90, a); assert (a.front() == 4 && a.size() == 4);
-    itv.clear();
+    itv.clear(); a.clear();
 
     std::cout << "12, ";
     itv.add(1, 10, 1);
     itv.index();
     size_t count = itv.countOverlaps(1, 5);
-    itv.clear();
     assert (count == 1);
+    itv.clear(); a.clear();
 
-    std::cout << "13\n";
+    std::cout << "13, ";
     itv.index();
     count = itv.countOverlaps(1, 5);
-    itv.clear();
     assert (count == 0);
+    itv.clear(); a.clear();
+
+    std::cout << "14, ";
+    itv.add(1, 10, 0);
+    itv.index();
+    itv.searchInterval(5, 11);
+    count = 0;
+    int last_d{};
+    for (const auto& i : itv) {
+        last_d = i.data;
+        count += 1;
+    }
+    assert (count == 1); assert (last_d == 0);
+    itv.clear(); a.clear();
+
+    std::cout << "15, ";
+    itv.add(10, 11, -1);
+    itv.add(1, 100, 1);
+    itv.add(1, 1000, 2);
+    itv.index();
+    itv.searchInterval(5, 11);
+    count = 0;
+    for (const auto& i : itv) {
+        last_d = i.data;
+        count += 1;
+    }
+    assert (count == 3);  assert (last_d == 2);
+    itv.clear(); a.clear();
+
+    std::cout << "16\n";
+    itv.add(1, 10, 0);
+    itv.index();
+    itv.searchInterval(11, 12);
+    count = 0;
+    for (const auto& i : itv) {
+        last_d = i.data;
+        count += 1;
+    }
+    assert (count == 0);
+    itv.clear(); a.clear();
 
     std::cout << "All tests passed for SuperIntervals\n";
 
