@@ -9,8 +9,7 @@
 /test/intervaldb.o
 /superintervals.egg-info/
 /superintervals/intervalset.cpp
-/superintervals/intervalset.cpython-310-darwin.so
-/superintervals/intervalset.cpython-311-darwin.so
+/superintervals/intervalset.*.so
 /test/bed-intersect
 /superintervals/superintervals.cpp
 

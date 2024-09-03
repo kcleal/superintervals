@@ -66,7 +66,8 @@ void load_intervals(const std::string& intervals_file,
     while (std::getline(intervals_stream, line)) {
         std::istringstream iss(line);
         std::string token;
-        std::getline(iss, token, '\t');  // Skip the first token (chromosome)
+        std::getline(iss, token, '\t');
+        if (token != "chr1") continue;
         std::getline(iss, token, '\t');
         int start = std::stoi(token);
         std::getline(iss, token, '\t');
@@ -77,6 +78,7 @@ void load_intervals(const std::string& intervals_file,
         std::istringstream iss(line);
         std::string token;
         std::getline(iss, token, '\t');
+        if (token != "chr1") continue;
         std::getline(iss, token, '\t');
         int start = std::stoi(token);
         std::getline(iss, token, '\t');

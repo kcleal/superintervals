@@ -281,8 +281,8 @@ class SuperIntervals {
         if (starts.empty()) {
             return;
         }
-//        upperBound(end);
-        upperBound2(end);
+        upperBound(end);
+//        upperBound2(end);
 
         size_t i = idx;
         while (i > 0) {
@@ -290,15 +290,15 @@ class SuperIntervals {
                 found.push_back(data[i]);
                 --i;
             } else {
-//                if (branch[i] >= i) {
-//                    break;
-//                }
-//                i = branch[i];
-
-                if (extent[i] < start) {
+                if (branch[i] >= i) {
                     break;
                 }
                 i = branch[i];
+
+//                if (extent[i] < start) {
+//                    break;
+//                }
+//                i = branch[i];
             }
         }
         if (i==0 && start <= ends[0] && starts[0] <= end) {
