@@ -1,13 +1,18 @@
 [package]
 name = "superintervals"
-description = "Interval overlap liobrary"
-version = "0.1.0"
+description = "Interval overlap library"
+version = "0.2.0"
 authors = ["Kez Cleal. <clealk@cardiff.ac.uk>"]
 edition = "2021"
-repository = "https://github.com/dcjones/coitrees"
-documentation = "https://docs.rs/coitrees"
+repository = "https://github.com/kcleal/superintervals"
+documentation = "https://github.com/kcleal/superintervals"
 readme = "README.md"
 license-file = "LICENSE"
+
+
+[lib]
+path = "src/superintervals.rs"
+
 
 [profile.release]
 debug = 0

@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::str;
 use std::time::Instant;
 
@@ -11,7 +11,8 @@ use clap::Parser;
 
 extern crate libc;
 
-use superintervals::superintervals::SuperIntervals;
+use superintervals::SuperIntervals;
+use superintervals::SuperIntervalsE;
 
 
 type GenericError = Box<dyn Error>;
@@ -61,46 +62,64 @@ fn parse_bed_line(line: &[u8]) -> (&str, i32, i32) {
     (seqname, first, last)
 }
 
+
 type IntervalHashMap = FnvHashMap<String, SuperIntervals< ()>>;
 
 // Read a bed file into a SuperIntervals
 fn read_bed_file(path: &str) -> Result<FnvHashMap<String, SuperIntervals< ()>>, GenericError> {
     let mut nodes = IntervalHashMap::default();
-
-    let now = Instant::now();
-
     let file = File::open(path)?;
     let mut rdr = BufReader::new(file);
-    let mut line_count = 0;
     let mut line = Vec::new();
-
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (seqname, first, last) = parse_bed_line(&line);
-
+        if seqname != "chr1" {
+            continue;
+        }
         let intervals = nodes.entry(seqname.to_string()).or_insert_with(SuperIntervals::new);
         intervals.add(first, last, ());
-
-        line_count += 1;
         line.clear();
     }
-    eprintln!(
-        "reading bed: {}s",
-        now.elapsed().as_millis() as f64 / 1000.0
-    );
-    eprintln!("lines: {}", line_count);
-    eprintln!("sequences: {}", nodes.len());
 
     let now = Instant::now();
     for intervals in nodes.values_mut() {
         intervals.index();
     }
-    eprintln!("indexing: {}s", now.elapsed().as_millis() as f64 / 1000.0);
 
+    eprint!("SuperIntervals-rs\t{}\t", now.elapsed().as_millis());
+    std::io::stderr().flush().unwrap();
+    Ok(nodes)
+}
+
+
+type IntervalHashMapE = FnvHashMap<String, SuperIntervalsE< ()>>;
+
+fn read_bed_file_e(path: &str) -> Result<FnvHashMap<String, SuperIntervalsE< ()>>, GenericError> {
+    let mut nodes = IntervalHashMapE::default();
+    let file = File::open(path)?;
+    let mut rdr = BufReader::new(file);
+    let mut line = Vec::new();
+    while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
+        let (seqname, first, last) = parse_bed_line(&line);
+        if seqname != "chr1" {
+            continue;
+        }
+        let intervals = nodes.entry(seqname.to_string()).or_insert_with(SuperIntervalsE::new);
+        intervals.add(first, last, ());
+        line.clear();
+    }
+
+    let now = Instant::now();
+    for intervals in nodes.values_mut() {
+        intervals.index();
+    }
+
+    eprint!("SuperIntervalsE-rs\t{}\t", now.elapsed().as_millis());
+    std::io::stderr().flush().unwrap();
     Ok(nodes)
 }
 
 fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericError> {
-    let mut trees = read_bed_file(filename_a)?;
 
     let file = File::open(filename_b)?;
     let mut rdr = BufReader::new(file);
@@ -116,25 +135,62 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
         ranges.push((first, last));
         line.clear();
     }
-    println!("N queries: {}", ranges.len());
+
+    let mut trees = read_bed_file(filename_a)?;
     let intervals: &mut SuperIntervals<()> = trees.get_mut("chr1").ok_or("Chromosome intervals not found")?;
 
     // Find overlaps (collecting results)
-    let now = Instant::now();
     let mut total_found = 0;
-
     let mut results = Vec::new();
     results.reserve(10000);
+    let mut now = Instant::now();
     for &(first, last) in &ranges {
-        intervals.find_overlaps(&first, &last, &mut results);
+        intervals.find_overlaps(first, last, &mut results);
         total_found += results.len();
         results.clear();
     }
+    eprint!("{}\t{}\t", now.elapsed().as_millis(), total_found);
+    std::io::stderr().flush().unwrap();
 
-    let find_elapsed = now.elapsed();
-    println!("Total found: {}, Find Time taken: {:?}", total_found, find_elapsed);
+    // Count overlaps
+    let mut n_overlaps = 0;
+    now = Instant::now();
+    for &(first, last) in &ranges {
+        n_overlaps += intervals.count_overlaps(first, last);
+    }
+    eprint!("{}\t{}\n", now.elapsed().as_millis(), n_overlaps);
+    std::io::stderr().flush().unwrap();
+
+
+    //
+    let mut trees_e = read_bed_file_e(filename_a)?;
+
+    let intervals_e: &mut SuperIntervalsE<()> = trees_e.get_mut("chr1").ok_or("Chromosome intervals not found")?;
+
+    // Find overlaps (collecting results)
+
+    total_found = 0;
+    results.clear();
+    now = Instant::now();
+    for &(first, last) in &ranges {
+        intervals_e.find_overlaps(first, last, &mut results);
+        total_found += results.len();
+        results.clear();
+    }
+    eprint!("{}\t{}\t", now.elapsed().as_millis(), total_found);
+    std::io::stderr().flush().unwrap();
+
+    // Count overlaps
+    let mut n_overlaps = 0;
+    now = Instant::now();
+    for &(first, last) in &ranges {
+        n_overlaps += intervals_e.count_overlaps(first, last);
+    }
+    eprint!("{}\t{}\n", now.elapsed().as_millis(), n_overlaps);
+    std::io::stderr().flush().unwrap();
 
     Ok(())
+
 }
 
 

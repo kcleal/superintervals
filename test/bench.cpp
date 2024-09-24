@@ -5,6 +5,7 @@ extern "C" {
     #include "intervaldb.h"
 }
 #include "superintervals.hpp"
+#include "superintervals_c.h"
 
 #include <chrono>
 #include <iostream>
@@ -31,7 +32,9 @@ size_t uSec(high_resolution_clock::time_point& t0) {
     return duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
 }
 
-void branch_factor(double& avg, double& max_count, std::vector<int>& ends) {
+void branch_factor(std::vector<int>& ends) {
+    double avg = 0;
+    double max_count = 0;
     std::vector<int> counts(ends.size(), 0);
     for (size_t i=0; i < ends.size() - 1; ++i) {
         for (size_t j=i + 1; j < ends.size(); ++j) {
@@ -49,6 +52,7 @@ void branch_factor(double& avg, double& max_count, std::vector<int>& ends) {
         sum_count += (double)v;
     }
     avg = sum_count / (double)counts.size();
+    std::cout << "Avg branching: " << avg << " Max branching: " << max_count << std::endl;
 }
 
 void load_intervals(const std::string& intervals_file,
@@ -96,9 +100,9 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     a.reserve(10000); b.reserve(10000);
 
     std::cout << "SuperIntervals\t";
-    SuperIntervals<int, size_t> itv;
+
     t0 = high_resolution_clock::now();
-    itv = SuperIntervals<int, size_t>();
+    auto itv = SuperIntervals<int, size_t>();
     index = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : intervals) {
@@ -124,11 +128,67 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         found += itv.countOverlaps(item.start, item.end - 1);
     }
     std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
-//    return;
-//    double avg = 0;
-//    double mc = 0;
-//    branch_factor(avg, mc, itv.ends);
-//    std::cout << avg << " " << mc << std::endl;
+
+
+    std::cout << "SuperIntervalsE\t";
+
+    t0 = high_resolution_clock::now();
+    auto itv2 = SuperIntervalsE<int, size_t>();
+    index = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : intervals) {
+        itv2.add(item.start, item.end - 1, index);
+        index += 1;
+    }
+    itv2.index();
+
+    std::cout << uSec(t0) << "\t";  // construct
+
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        itv2.findOverlaps(item.start, item.end - 1, a);
+        found += a.size();
+        a.clear();
+    }
+    std::cerr << uSec(t1) << "\t" << found << "\t";  // find all overlapping
+
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        found += itv2.countOverlaps(item.start, item.end - 1);
+    }
+    std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
+
+//    branch_factor(itv.ends);
+
+//    std::cout << "cSuperIntervals\t";
+//
+//    t0 = high_resolution_clock::now();
+//    cSuperIntervals* citv = createSuperIntervals();
+//    index = 0;
+//    t1 = high_resolution_clock::now();
+//    // void addInterval(cSuperIntervals* si, int32_t start, int32_t end, void* value);
+//    for (const auto& item : intervals) {
+//        addInterval(citv, item.start, item.end - 1, index);
+//        index += 1;
+//    }
+//    indexSuperIntervals(citv, 1);
+//
+//    std::cout << uSec(t0) << "\t";  // construct
+//
+//    found = 0;
+//    t1 = high_resolution_clock::now();
+//    int32_t found_arr[100000];
+//    size_t n_found = 0;
+//    // findOverlaps(cSuperIntervals* si, int32_t start, int32_t end, int32_t* found, size_t* found_size);
+//    for (const auto& item : queries) {
+//        findOverlaps(citv, item.start, item.end - 1, found_arr, &n_found);
+//        found += n_found;
+//        n_found = 0;
+//    }
+//    std::cerr << uSec(t1) << "\t" << found << "\n";  // find all overlapping
+
 
     std::cout << "ImplicitITree\t";
     t0 = high_resolution_clock::now();
@@ -152,7 +212,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         found += b.size();
     }
     std::cout << uSec(t1) << "\t" << found << std::endl;
-    return;
+//    return;
 
     std::cout << "IntervalTree\t";
     std::vector<interval_tree::Interval<int, int>> intervals2;

@@ -2,8 +2,8 @@ from setuptools import setup, find_packages, Extension
 from Cython.Build import cythonize
 
 ext_modules = [
-    Extension("superintervals.intervalset",
-              ["superintervals/intervalset.pyx"],
+    Extension("src.intervalset",
+              ["src/intervalset.pyx"],
               language="c++",
               extra_compile_args=["-std=c++17", "-march=native"])
 ]

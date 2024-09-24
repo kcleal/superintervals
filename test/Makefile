@@ -1,7 +1,7 @@
-CXXFLAGS=	-O3 -std=c++17 -march=native #-S # -g -Wall #-S
+CXXFLAGS=	-O3 -std=c++17 -march=native -mtune=native -fomit-frame-pointer -flto -fno-rtti
 LIBS=		#-lz
 EXE=		run-tests run-cpp-libs
-INCLUDE= -I../superintervals -I./3rd-party
+INCLUDE= -I../src -I./3rd-party
 # GCC use -ftree-vectorize -fopt-info-vec-optimized
 
 # to build coitrees use:
@@ -23,7 +23,7 @@ run-tests: tests.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDE) $< $(LIBS) -o run-tests
 
 run-cpp-libs: bench.cpp build_ncls
-		$(CXX) $(CXXFLAGS) $(INCLUDE) $< intervaldb.o $(LIBS) -o $@
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $< intervaldb.o $(LIBS) -o $@
 
 clean:
-		rm -fr *.o a.out *.dSYM $(EXE)
+	rm -fr *.o a.out *.dSYM $(EXE)
