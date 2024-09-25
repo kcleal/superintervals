@@ -114,11 +114,12 @@ where
         }
         length -= 1;
         self.idx = 0;
-        const ENTRIES_PER_256KB: usize = 256 * 1024 / std::mem::size_of::<i32>();
+//         const ENTRIES_PER_256KB: usize = 256 * 1024 / std::mem::size_of::<i32>();
 
-        if length >= ENTRIES_PER_256KB {
-            let num_per_cache_line: usize = std::cmp::max(64 / std::mem::size_of::<i32>(), 1);
-            while length >= 3 * num_per_cache_line {
+//         if length >= ENTRIES_PER_256KB {
+//             let num_per_cache_line: usize = std::cmp::max(64 / std::mem::size_of::<i32>(), 1);
+//             while length >= 3 * num_per_cache_line {
+            while length >= 196 {
                 let half = length / 2;
 
                 // Using unsafe block to remove bounds checking
@@ -133,7 +134,7 @@ where
 
                 length = half;
             }
-        }
+        //}
 
         while length > 0 {
             let half = length / 2;
@@ -185,29 +186,30 @@ where
         if self.starts.is_empty() {
             return 0;
         }
+
         self.upper_bound(end);
         let mut found: usize = 0;
         let mut i = self.idx;
-
         unsafe {
             #[cfg(target_arch = "x86_64")]
             {
                 use std::arch::x86_64::*;
                 let start_vec = _mm256_set1_epi32(start);
-                const SIMD_WIDTH: usize = 8; // 256 bits / 32 bits
+                const SIMD_WIDTH: usize = 256 / (core::mem::size_of::<i32>() * 8);
                 const BLOCK: usize = SIMD_WIDTH * 4;
 
                 while i > 0 {
-                    if start <= *self.ends.get_unchecked(i) {
+                    if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
-                        while i >= BLOCK {
-                            let mut count: usize = 0;
+
+                        while i > BLOCK {
+                            let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
-                                let ends_vec = _mm256_loadu_si256(self.ends.get_unchecked(j - SIMD_WIDTH + 1) as *const i32 as *const __m256i);
+                                let ends_vec = _mm256_load_si256(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const __m256i);
                                 let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
                                 let mask = _mm256_movemask_epi8(_mm256_xor_si256(cmp_mask, _mm256_set1_epi32(-1)));
-                                count += (_popcnt32(mask) / 4) as usize;
+                                count += mask.count_ones() as usize / 4;  // Each comparison result is 4 bits
                             }
                             found += count;
                             i -= BLOCK;
@@ -216,11 +218,10 @@ where
                             }
                         }
                     } else {
-                        let branch_i = *self.branch.get_unchecked(i);
-                        if branch_i >= i {
+                        if self.branch[i] >= i {
                             break;
                         }
-                        i = branch_i;
+                        i = self.branch[i];
                     }
                 }
             }
@@ -229,19 +230,22 @@ where
             {
                 use std::arch::aarch64::*;
                 let start_vec = vdupq_n_s32(start);
-                const SIMD_WIDTH: usize = 4; // 128 bits / 32 bits
+                const SIMD_WIDTH: usize = 128 / (core::mem::size_of::<i32>() * 8);
                 const BLOCK: usize = SIMD_WIDTH * 4;
+                let ones = vdupq_n_u32(1);
 
                 while i > 0 {
-                    if start <= *self.ends.get_unchecked(i) {
+                    if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
-                        while i >= BLOCK {
+
+                        while i > BLOCK {
                             let mut count = 0;
-                            for j in (i - BLOCK + 1..=i).step_by(SIMD_WIDTH) {
-                                let ends_vec = vld1q_s32(self.ends.get_unchecked(j - SIMD_WIDTH + 1) as *const i32);
+                            for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
+                                let ends_vec = vld1q_s32(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const i32);
                                 let mask = vcleq_s32(start_vec, ends_vec);
-                                count += vaddvq_u32(vreinterpretq_u32_s32(mask)) as usize;
+                                let bool_mask = vandq_u32(mask, ones);
+                                count += vaddvq_u32(bool_mask) as usize;
                             }
                             found += count;
                             i -= BLOCK;
@@ -250,34 +254,137 @@ where
                             }
                         }
                     } else {
-                        let branch_i = *self.branch.get_unchecked(i);
-                        if branch_i >= i {
+                        if self.branch[i] >= i {
                             break;
                         }
-                        i = branch_i;
+                        i = self.branch[i];
                     }
                 }
             }
 
-            // Process remaining elements
-            while i > 0 {
-                if start <= *self.ends.get_unchecked(i) {
-                    found += 1;
-                    i -= 1;
-                } else {
-                    let branch_i = *self.branch.get_unchecked(i);
-                    if branch_i >= i {
-                        break;
+            #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+            {
+                const BLOCK: usize = 16;
+
+                while i > 0 {
+                    if start <= self.ends[i] {
+                        found += 1;
+                        i -= 1;
+
+                        while i > BLOCK {
+                            let mut count = 0;
+                            for j in (i - BLOCK + 1..=i).rev() {
+                                if start <= self.ends[j] {
+                                    count += 1;
+                                }
+                            }
+                            found += count;
+                            i -= BLOCK;
+                            if count < BLOCK {
+                                break;
+                            }
+                        }
+                    } else {
+                        if self.branch[i] >= i {
+                            break;
+                        }
+                        i = self.branch[i];
                     }
-                    i = branch_i;
                 }
             }
-            if i == 0 && start <= *self.ends.get_unchecked(0) && *self.starts.get_unchecked(0) <= end {
+
+            if i == 0 && start <= self.ends[0] && self.starts[0] <= end {
                 found += 1;
             }
         }
         found
     }
+//     pub fn count_overlaps(&mut self, start: i32, end: i32) -> usize {
+//         if self.starts.is_empty() {
+//             return 0;
+//         }
+//         self.upper_bound(end);
+//         let mut found: usize = 0;
+//         let mut i = self.idx;
+//
+//         unsafe {
+//             #[cfg(target_arch = "x86_64")]
+//             {
+//                 use std::arch::x86_64::*;
+//                 let start_vec = _mm256_set1_epi32(start);
+//                 const SIMD_WIDTH: usize = 8; // 256 bits / 32 bits
+//                 const BLOCK: usize = SIMD_WIDTH * 4;
+//
+//                 while i > 0 {
+//                     if start <= *self.ends.get_unchecked(i) {
+//                         found += 1;
+//                         i -= 1;
+//                         while i >= BLOCK {
+//                             let mut count: usize = 0;
+//                             for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
+//                                 let ends_vec = _mm256_loadu_si256(self.ends.get_unchecked(j - SIMD_WIDTH + 1) as *const i32 as *const __m256i);
+//                                 let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
+//                                 let mask = _mm256_movemask_epi8(_mm256_xor_si256(cmp_mask, _mm256_set1_epi32(-1)));
+//                                 count += (_popcnt32(mask) / 4) as usize;
+//                             }
+//                             found += count;
+//                             i -= BLOCK;
+//                             if count < BLOCK {
+//                                 break;
+//                             }
+//                         }
+//                     } else {
+//                         let branch_i = *self.branch.get_unchecked(i);
+//                         if branch_i >= i {
+//                             break;
+//                         }
+//                         i = branch_i;
+//                     }
+//                 }
+//             }
+//
+//             #[cfg(target_arch = "aarch64")]
+//             {
+//                 use std::arch::aarch64::*;
+//                 let start_vec = vdupq_n_s32(start);
+//                 let ones = vdupq_n_u32(1); // Vector of all ones
+//                 const SIMD_WIDTH: usize = 4; // 128 bits / 32 bits
+//                 const BLOCK: usize = SIMD_WIDTH * 4;
+//
+//                 while i > 0 {
+//                     if start <= *self.ends.get_unchecked(i) {
+//                         found += 1;
+//                         i -= 1;
+//                         while i >= BLOCK {
+//                             let mut count = 0;
+//                             for j in (i - BLOCK + 1..=i).step_by(SIMD_WIDTH) {
+//                                 let ends_vec = vld1q_s32(self.ends.get_unchecked(j - SIMD_WIDTH + 1) as *const i32);
+//                                 let mask = vcleq_s32(start_vec, ends_vec);
+//                                 let bool_mask = vandq_u32(mask, ones);
+//                                 count += vaddvq_u32(bool_mask) as usize;
+//                             }
+//                             found += count;
+//                             i -= BLOCK;
+//                             if count < BLOCK {
+//                                 break;
+//                             }
+//                         }
+//                     } else {
+//                         let branch_i = *self.branch.get_unchecked(i);
+//                         if branch_i >= i {
+//                             break;
+//                         }
+//                         i = branch_i;
+//                     }
+//                 }
+//             }
+//
+//             if i == 0 && start <= *self.ends.get_unchecked(0) && *self.starts.get_unchecked(0) <= end {
+//                 found += 1;
+//             }
+//         }
+//         found
+//     }
 
 
     fn sort_block<F>(&mut self, start_i: usize, end_i: usize, compare: F)
@@ -477,29 +584,30 @@ where
         if self.starts.is_empty() {
             return 0;
         }
+
         self.upper_bound(end);
         let mut found: usize = 0;
         let mut i = self.idx;
-
         unsafe {
             #[cfg(target_arch = "x86_64")]
             {
                 use std::arch::x86_64::*;
                 let start_vec = _mm256_set1_epi32(start);
-                const SIMD_WIDTH: usize = 8; // 256 bits / 32 bits
+                const SIMD_WIDTH: usize = 256 / (core::mem::size_of::<i32>() * 8);
                 const BLOCK: usize = SIMD_WIDTH * 4;
 
                 while i > 0 {
-                    if start <= *self.ends.get_unchecked(i) {
+                    if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
-                        while i >= BLOCK {
-                            let mut count: usize = 0;
+
+                        while i > BLOCK {
+                            let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
-                                let ends_vec = _mm256_loadu_si256(self.ends.get_unchecked(j - SIMD_WIDTH + 1) as *const i32 as *const __m256i);
+                                let ends_vec = _mm256_load_si256(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const __m256i);
                                 let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
                                 let mask = _mm256_movemask_epi8(_mm256_xor_si256(cmp_mask, _mm256_set1_epi32(-1)));
-                                count += (_popcnt32(mask) / 4) as usize;
+                                count += mask.count_ones() as usize / 4;  // Each comparison result is 4 bits
                             }
                             found += count;
                             i -= BLOCK;
@@ -508,11 +616,10 @@ where
                             }
                         }
                     } else {
-                        let branch_i = *self.branch.get_unchecked(i);
-                        if branch_i >= i {
+                        if self.branch[i] >= i {
                             break;
                         }
-                        i = branch_i;
+                        i = self.branch[i];
                     }
                 }
             }
@@ -521,19 +628,22 @@ where
             {
                 use std::arch::aarch64::*;
                 let start_vec = vdupq_n_s32(start);
-                const SIMD_WIDTH: usize = 4; // 128 bits / 32 bits
+                const SIMD_WIDTH: usize = 128 / (core::mem::size_of::<i32>() * 8);
                 const BLOCK: usize = SIMD_WIDTH * 4;
+                let ones = vdupq_n_u32(1);
 
                 while i > 0 {
-                    if start <= *self.ends.get_unchecked(i) {
+                    if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
-                        while i >= BLOCK {
+
+                        while i > BLOCK {
                             let mut count = 0;
-                            for j in (i - BLOCK + 1..=i).step_by(SIMD_WIDTH) {
-                                let ends_vec = vld1q_s32(self.ends.get_unchecked(j - SIMD_WIDTH + 1) as *const i32);
+                            for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
+                                let ends_vec = vld1q_s32(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const i32);
                                 let mask = vcleq_s32(start_vec, ends_vec);
-                                count += vaddvq_u32(vreinterpretq_u32_s32(mask)) as usize;
+                                let bool_mask = vandq_u32(mask, ones);
+                                count += vaddvq_u32(bool_mask) as usize;
                             }
                             found += count;
                             i -= BLOCK;
@@ -542,35 +652,51 @@ where
                             }
                         }
                     } else {
-                        let branch_i = *self.branch.get_unchecked(i);
-                        if branch_i >= i {
+                        if self.branch[i] >= i {
                             break;
                         }
-                        i = branch_i;
+                        i = self.branch[i];
                     }
                 }
             }
 
-            // Process remaining elements
-            while i > 0 {
-                if start <= *self.ends.get_unchecked(i) {
-                    found += 1;
-                    i -= 1;
-                } else {
-                    let branch_i = *self.branch.get_unchecked(i);
-                    if branch_i >= i {
-                        break;
+            #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+            {
+                const BLOCK: usize = 16;
+
+                while i > 0 {
+                    if start <= self.ends[i] {
+                        found += 1;
+                        i -= 1;
+
+                        while i > BLOCK {
+                            let mut count = 0;
+                            for j in (i - BLOCK + 1..=i).rev() {
+                                if start <= self.ends[j] {
+                                    count += 1;
+                                }
+                            }
+                            found += count;
+                            i -= BLOCK;
+                            if count < BLOCK {
+                                break;
+                            }
+                        }
+                    } else {
+                        if self.branch[i] >= i {
+                            break;
+                        }
+                        i = self.branch[i];
                     }
-                    i = branch_i;
                 }
             }
-            if i == 0 && start <= *self.ends.get_unchecked(0) && *self.starts.get_unchecked(0) <= end {
+
+            if i == 0 && start <= self.ends[0] && self.starts[0] <= end {
                 found += 1;
             }
         }
         found
     }
-
 
     fn sort_block<F>(&mut self, start_i: usize, end_i: usize, compare: F)
     where

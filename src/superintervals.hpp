@@ -212,18 +212,19 @@ class SuperIntervals {
     virtual inline void upperBound(const S value) noexcept {  // https://github.com/mh-dm/sb_lower_bound/blob/master/sbpm_lower_bound.h
         size_t length = starts.size() - 1;
         idx = 0;
-        constexpr int entries_per_256KB = 256 * 1024 / sizeof(S);
-        constexpr int num_per_cache_line = std::max(64 / int(sizeof(S)), 1);
-        if (length >= entries_per_256KB) {
-            while (length >= 3 * num_per_cache_line) {
+//        constexpr int entries_per_256KB = 256 * 1024 / sizeof(S);
+//        constexpr int entries_per_256KB = 256 * 1024 / sizeof(S);
+        constexpr int num_per_cache_line = 3 * hardware_constructive_interference_size;
+//        if (length >= entries_per_256KB) {
+            while (length >= num_per_cache_line) {
                 size_t half = length / 2;
-                __builtin_prefetch(&starts[idx + half / 2]);
+//                __builtin_prefetch(&starts[idx + half / 2]);
                 size_t first_half1 = idx + (length - half);
-                __builtin_prefetch(&starts[first_half1 + half / 2]);
+//                __builtin_prefetch(&starts[first_half1 + half / 2]);
                 idx += (starts[idx + half] <= value) * (length - half);
                 length = half;
             }
-        }
+//        }
         while (length > 0) {
             size_t half = length / 2;
             idx += (starts[idx + half] <= value) * (length - half);
@@ -366,6 +367,13 @@ class SuperIntervals {
             data[start_i + i] = tmp[i].data;
         }
     }
+
+    // Corresponds to cache line size
+#ifdef __cpp_lib_hardware_interference_size
+    using std::hardware_constructive_interference_size;
+#else
+    static constexpr std::size_t hardware_constructive_interference_size = 64;
+#endif
 
 };
 

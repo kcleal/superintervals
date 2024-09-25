@@ -64,7 +64,8 @@ void load_intervals(const std::string& intervals_file,
     std::ifstream intervals_stream(intervals_file);
     std::ifstream queries_stream(queries_file);
     if (!intervals_stream || !queries_stream) {
-        throw std::runtime_error("Failed to open input files");
+        std::cerr << "Failed to open input files\n";
+        std::exit(-1);
     }
     std::string line;
     while (std::getline(intervals_stream, line)) {
