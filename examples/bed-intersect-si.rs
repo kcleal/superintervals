@@ -12,7 +12,6 @@ use clap::Parser;
 extern crate libc;
 
 use superintervals::SuperIntervals;
-use superintervals::SuperIntervalsE;
 
 
 type GenericError = Box<dyn Error>;
@@ -92,33 +91,6 @@ fn read_bed_file(path: &str) -> Result<FnvHashMap<String, SuperIntervals< ()>>, 
 }
 
 
-type IntervalHashMapE = FnvHashMap<String, SuperIntervalsE< ()>>;
-
-fn read_bed_file_e(path: &str) -> Result<FnvHashMap<String, SuperIntervalsE< ()>>, GenericError> {
-    let mut nodes = IntervalHashMapE::default();
-    let file = File::open(path)?;
-    let mut rdr = BufReader::new(file);
-    let mut line = Vec::new();
-    while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
-        let (seqname, first, last) = parse_bed_line(&line);
-        if seqname != "chr1" {
-            continue;
-        }
-        let intervals = nodes.entry(seqname.to_string()).or_insert_with(SuperIntervalsE::new);
-        intervals.add(first, last, ());
-        line.clear();
-    }
-
-    let now = Instant::now();
-    for intervals in nodes.values_mut() {
-        intervals.index();
-    }
-
-    eprint!("SuperIntervalsE-rs\t{}\t", now.elapsed().as_millis());
-    std::io::stderr().flush().unwrap();
-    Ok(nodes)
-}
-
 fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericError> {
 
     let file = File::open(filename_b)?;
@@ -157,34 +129,6 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     now = Instant::now();
     for &(first, last) in &ranges {
         n_overlaps += intervals.count_overlaps(first, last);
-    }
-    eprint!("{}\t{}\n", now.elapsed().as_millis(), n_overlaps);
-    std::io::stderr().flush().unwrap();
-
-
-    //
-    let mut trees_e = read_bed_file_e(filename_a)?;
-
-    let intervals_e: &mut SuperIntervalsE<()> = trees_e.get_mut("chr1").ok_or("Chromosome intervals not found")?;
-
-    // Find overlaps (collecting results)
-
-    total_found = 0;
-    results.clear();
-    now = Instant::now();
-    for &(first, last) in &ranges {
-        intervals_e.find_overlaps(first, last, &mut results);
-        total_found += results.len();
-        results.clear();
-    }
-    eprint!("{}\t{}\t", now.elapsed().as_millis(), total_found);
-    std::io::stderr().flush().unwrap();
-
-    // Count overlaps
-    let mut n_overlaps = 0;
-    now = Instant::now();
-    for &(first, last) in &ranges {
-        n_overlaps += intervals_e.count_overlaps(first, last);
     }
     eprint!("{}\t{}\n", now.elapsed().as_millis(), n_overlaps);
     std::io::stderr().flush().unwrap();

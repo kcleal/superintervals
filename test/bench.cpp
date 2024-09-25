@@ -5,7 +5,7 @@ extern "C" {
     #include "intervaldb.h"
 }
 #include "superintervals.hpp"
-#include "superintervals_c.h"
+#include "superintervalsE.hpp"
 
 #include <chrono>
 #include <iostream>

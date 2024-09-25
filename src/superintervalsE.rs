@@ -1,32 +1,16 @@
-use std::cmp::Ordering;
 
-#[derive(Debug, Clone)]
-pub struct Interval<T> {
-    start: i32,
-    end: i32,
-    data: T,
-}
-
-pub struct SuperIntervals<T> {
-    starts: Vec<i32>,
-    ends: Vec<i32>,
-    branch: Vec<usize>,
-    data: Vec<T>,
-    idx: usize,
-    start_sorted: bool,
-    end_sorted: bool,
-}
-
-impl<T> SuperIntervals<T>
+impl<T> SuperIntervalsE<T>
 where
     T: Clone,
 {
     pub fn new() -> Self {
-        SuperIntervals {
+        SuperIntervalsE {
             starts: Vec::new(),
             ends: Vec::new(),
             branch: Vec::new(),
             data: Vec::new(),
+            eytz: Vec::new(),
+            eytz_index: Vec::new(),
             idx: 0,
             start_sorted: true,
             end_sorted: true,
@@ -90,61 +74,57 @@ where
         }
     }
 
+    fn eytzinger_helper(&mut self, mut i: usize, k: usize, n: usize) -> usize {
+        if k < n {
+            i = self.eytzinger_helper(i, 2*k+1, n);
+            self.eytz[k] = self.starts[i];
+            self.eytz_index[k] = i;
+            i += 1;
+            i = self.eytzinger_helper(i, 2*k+2, n);
+        }
+        i
+    }
+
     pub fn index(&mut self) {
         if self.starts.is_empty() {
             return;
         }
-        self.starts.shrink_to_fit();
-        self.ends.shrink_to_fit();
-        self.data.shrink_to_fit();
         self.sort_intervals();
+        self.eytz.resize(self.starts.len() + 1, 0);
+        self.eytz_index.resize(self.starts.len() + 1, 0);
+        self.eytzinger_helper(0, 0, self.starts.len());
+
         self.branch.resize(self.starts.len(), usize::MAX);
-        let mut br: Vec<(i32, usize)> = Vec::with_capacity(1000);
-        unsafe {
-            br.push((*self.ends.get_unchecked(0), 0));
-            for i in 1..self.ends.len() {
-                while !br.is_empty() && br.last().unwrap().0 < *self.ends.get_unchecked(i) {
-                    br.pop();
+        for i in 0..self.ends.len() - 1 {
+            for j in i + 1..self.ends.len() {
+                if self.ends[j] >= self.ends[i] {
+                    break;
                 }
-                if !br.is_empty() {
-                    *self.branch.get_unchecked_mut(i) = br.last().unwrap().1;
-                }
-                br.push((*self.ends.get_unchecked(i), i));
+                self.branch[j] = i;
             }
         }
         self.idx = 0;
     }
 
-    pub fn upper_bound(&mut self, value: i32) {
-        let mut length = self.starts.len();
-        if length == 0 {
-            return;
-        }
-        length -= 1;
-        self.idx = 0;
-        while length >= 196 {
-            let half = length / 2;
-            unsafe {
-                let _ = self.starts.get_unchecked(self.idx + half / 2);
-                let first_half1 = self.idx + (length - half);
-                let _ = self.starts.get_unchecked(first_half1 + half / 2);
-                if *self.starts.get_unchecked(self.idx + half) <= value {
-                    self.idx += length - half;
+    pub fn upper_bound(&mut self, x: i32) {
+        let mut i = 0;
+        let n_intervals = self.starts.len();
+        let mut best_idx = n_intervals;
+        unsafe {
+            while i < n_intervals {
+                if *self.eytz.get_unchecked(i) > x {
+                    if best_idx == n_intervals || *self.eytz.get_unchecked(i) <= *self.eytz.get_unchecked(best_idx) {
+                        best_idx = i;  // best candidate closer to x
+                    }
+                    i = 2 * i + 1;
+                } else {
+                    i = 2 * i + 2;
                 }
             }
-            length = half;
-        }
-        while length > 0 {
-            let half = length / 2;
-            unsafe {
-                if *self.starts.get_unchecked(self.idx + half) <= value {
-                    self.idx += length - half;
-                }
+            self.idx = if best_idx < n_intervals { *self.eytz_index.get_unchecked(best_idx) } else { n_intervals - 1 };
+            if self.idx > 0 && *self.starts.get_unchecked(self.idx) > x {
+                self.idx -= 1;
             }
-            length = half;
-        }
-        if self.idx > 0 && (self.idx == self.starts.len() || self.starts[self.idx] > value) {
-            self.idx -= 1;
         }
     }
 
@@ -154,7 +134,7 @@ where
         }
         self.upper_bound(end);
         let mut i = self.idx;
-        unsafe {
+        unsafe {  // remove bounds checking
             while i > 0 {
                 if start <= *self.ends.get_unchecked(i) {
                     found.push(self.data.get_unchecked(i).clone());
@@ -179,6 +159,7 @@ where
         if self.starts.is_empty() {
             return 0;
         }
+
         self.upper_bound(end);
         let mut found: usize = 0;
         let mut i = self.idx;
@@ -189,10 +170,12 @@ where
                 let start_vec = _mm256_set1_epi32(start);
                 const SIMD_WIDTH: usize = 256 / (core::mem::size_of::<i32>() * 8);
                 const BLOCK: usize = SIMD_WIDTH * 4;
+
                 while i > 0 {
                     if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
+
                         while i > BLOCK {
                             let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
@@ -223,10 +206,12 @@ where
                 const SIMD_WIDTH: usize = 128 / (core::mem::size_of::<i32>() * 8);
                 const BLOCK: usize = SIMD_WIDTH * 4;
                 let ones = vdupq_n_u32(1);
+
                 while i > 0 {
                     if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
+
                         while i > BLOCK {
                             let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
@@ -253,10 +238,12 @@ where
             #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
             {
                 const BLOCK: usize = 16;
+
                 while i > 0 {
                     if start <= self.ends[i] {
                         found += 1;
                         i -= 1;
+
                         while i > BLOCK {
                             let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev() {
@@ -278,6 +265,7 @@ where
                     }
                 }
             }
+
             if i == 0 && start <= self.ends[0] && self.starts[0] <= end {
                 found += 1;
             }
