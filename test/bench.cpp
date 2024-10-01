@@ -1,11 +1,12 @@
-
+#include "intervalstab.hpp"
 #include "IITree.hpp"
 #include "IntervalTree.h"
 extern "C" {
+    #include "cgranges.h"
     #include "intervaldb.h"
 }
 #include "superintervals.hpp"
-#include "superintervalsE.hpp"
+
 
 #include <chrono>
 #include <iostream>
@@ -22,6 +23,12 @@ using std::chrono::duration;
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
 
+namespace Bench {
+
+size_t found, index;
+high_resolution_clock::time_point t0, t1;
+std::vector<size_t> a, b;
+
 
 struct BedInterval {
     int start;
@@ -29,7 +36,7 @@ struct BedInterval {
 };
 
 size_t uSec(high_resolution_clock::time_point& t0) {
-    return duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
+    return duration_cast<microseconds>(high_resolution_clock::now() - t0).count();
 }
 
 void branch_factor(std::vector<int>& ends) {
@@ -90,108 +97,40 @@ void load_intervals(const std::string& intervals_file,
         int end = std::stoi(token);
         queries.emplace_back(BedInterval{std::min(start, end), std::max(start, end)});
     }
-    std::cerr << "N ref intervals: " << intervals.size() << ", N queries: " << queries.size() << std::endl;
 }
 
 
-void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
-    size_t found, index;
-    high_resolution_clock::time_point t0, t1;
-    std::vector<size_t> a, b;
-    a.reserve(10000); b.reserve(10000);
-
-    std::cout << "SuperIntervals\t";
-
+void run_FastStabbing(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
+    std::cout << "FastStabbing,";
+    std::vector<intervalstab::interval> sti;
+    sti.resize(intervals.size());
+    int i = 0;
+    int max_e = 0;
+    for (const auto &itm: intervals) {
+        sti[i].l = itm.start;
+        sti[i].r = itm.end - 1;
+        if (itm.end > max_e) { max_e = itm.end; };
+        i += 1;
+    }
     t0 = high_resolution_clock::now();
-    auto itv = SuperIntervals<int, size_t>();
-    index = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : intervals) {
-        itv.add(item.start, item.end - 1, index);
-        index += 1;
-    }
-    itv.index();
 
-    std::cout << uSec(t0) << "\t";  // construct
+    auto stab = intervalstab::faststabbing(sti, sti.size(), max_e);
+    std::cout << uSec(t0) << ",,,,,";  // construct. no results for findOverlaps, countOverlaps
 
     found = 0;
+    std::vector<intervalstab::interval*> stab_found;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        itv.findOverlaps(item.start, item.end - 1, a);
-        found += a.size();
-        a.clear();
+        stab_found = stab.query(item.start);
+        found += stab_found.size();
+        stab_found.clear();
     }
-    std::cerr << uSec(t1) << "\t" << found << "\t";  // find all overlapping
-
-    found = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        found += itv.countOverlaps(item.start, item.end - 1);
-    }
-    std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
+    std::cerr << uSec(t1) << "," << found << "\n";  // find all overlapping
+}
 
 
-    std::cout << "SuperIntervalsE\t";
-
-    t0 = high_resolution_clock::now();
-    auto itv2 = SuperIntervalsE<int, size_t>();
-    index = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : intervals) {
-        itv2.add(item.start, item.end - 1, index);
-        index += 1;
-    }
-    itv2.index();
-
-    std::cout << uSec(t0) << "\t";  // construct
-
-    found = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        itv2.findOverlaps(item.start, item.end - 1, a);
-        found += a.size();
-        a.clear();
-    }
-    std::cerr << uSec(t1) << "\t" << found << "\t";  // find all overlapping
-
-    found = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        found += itv2.countOverlaps(item.start, item.end - 1);
-    }
-    std::cerr << uSec(t1) << "\t" << found << std::endl;  // count all overlapping
-
-//    branch_factor(itv.ends);
-
-//    std::cout << "cSuperIntervals\t";
-//
-//    t0 = high_resolution_clock::now();
-//    cSuperIntervals* citv = createSuperIntervals();
-//    index = 0;
-//    t1 = high_resolution_clock::now();
-//    // void addInterval(cSuperIntervals* si, int32_t start, int32_t end, void* value);
-//    for (const auto& item : intervals) {
-//        addInterval(citv, item.start, item.end - 1, index);
-//        index += 1;
-//    }
-//    indexSuperIntervals(citv, 1);
-//
-//    std::cout << uSec(t0) << "\t";  // construct
-//
-//    found = 0;
-//    t1 = high_resolution_clock::now();
-//    int32_t found_arr[100000];
-//    size_t n_found = 0;
-//    // findOverlaps(cSuperIntervals* si, int32_t start, int32_t end, int32_t* found, size_t* found_size);
-//    for (const auto& item : queries) {
-//        findOverlaps(citv, item.start, item.end - 1, found_arr, &n_found);
-//        found += n_found;
-//        n_found = 0;
-//    }
-//    std::cerr << uSec(t1) << "\t" << found << "\n";  // find all overlapping
-
-
-    std::cout << "ImplicitITree\t";
+void run_IITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
+    std::cout << "ImplicitITree,";
     t0 = high_resolution_clock::now();
     IITree<int, int> tree;
     index = 0;
@@ -200,22 +139,50 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         index += 1;
     }
     tree.index();
-    std::cerr << uSec(t0) << "\t";
+    std::cerr << uSec(t0) << ",";
 
     found = 0;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
         tree.overlap(item.start, item.end, b);
         // Only returns indexes need to enumerate actual data for a fair test
-        for (const auto &v: b) {
-            index = tree.data(v); // make sure this step is not elided
-        }
+//        for (const auto &v: b) {
+//            index = tree.data(v); // make sure this step is not elided
+//        }
         found += b.size();
     }
-    std::cout << uSec(t1) << "\t" << found << std::endl;
-//    return;
+    std::cout << uSec(t1) << "," << found << std::endl;
+}
 
-    std::cout << "IntervalTree\t";
+void run_cgranges(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
+
+    std::cout << "cgranges,";
+
+    auto t0 = std::chrono::high_resolution_clock::now();
+    cgranges_t *cr = cr_init();
+    index = 0;
+    for (const auto& item : intervals) {
+        cr_add(cr, "chr1", item.start, item.end, index);
+        ++index;
+    }
+    cr_index(cr);
+    std::cout << uSec(t0) << ",";
+
+    int64_t *b = NULL;
+    int64_t m_b = 0;
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        int64_t n_overlap = cr_overlap(cr, "chr1", item.start, item.end, &b, &m_b);
+        found += n_overlap;
+    }
+    std::cout << uSec(t1) << "," << found << std::endl;
+    free(b);
+    cr_destroy(cr);
+}
+
+void run_ITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
+    std::cout << "IntervalTree,";
     std::vector<interval_tree::Interval<int, int>> intervals2;
     index = 0;
     for (const auto& item : intervals) {
@@ -224,7 +191,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     }
     t0 = high_resolution_clock::now();
     interval_tree::IntervalTree<int, int> tree2(std::move(intervals2));
-    std::cerr << uSec(t0) << "\t";
+    std::cerr << uSec(t0) << ",";
 
     found = 0;
     t1 = high_resolution_clock::now();
@@ -232,9 +199,11 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         std::vector<interval_tree::Interval<int, int>> result = tree2.findOverlapping(item.start, item.end - 1);
         found += result.size();
     }
-    std::cerr << uSec(t1) << "\t" << found << std::endl;
+    std::cerr << uSec(t1) << "," << found << std::endl;
+}
 
-    std::cout << "NestedContList\t";
+void run_NCLS(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
+    std::cout << "NestedContList,";
     t0 = high_resolution_clock::now();
 
     int nD = (int)intervals.size();
@@ -252,7 +221,7 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         index += 1;
     }
     SublistHeader* sh = build_nested_list(im, nD, p_n, p_nlists);
-    std::cerr << uSec(t0) << "\t";
+    std::cerr << uSec(t0) << ",";
 
     t1 = high_resolution_clock::now();
     IntervalIterator *it;
@@ -268,18 +237,93 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
         }
         free_interval_iterator(it_alloc);
     }
-    std::cerr << uSec(t1) << "\t" << found << std::endl;
+    std::cerr << uSec(t1) << "," << found << std::endl;
+}
+
+void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries,
+                SuperIntervals<int, size_t> &itv, std::string name
+                ) {
+    std::cout << name << ",";
+
+    index = 0;
+    t0 = high_resolution_clock::now();
+    for (const auto& item : intervals) {
+        itv.add(item.start, item.end - 1, index);
+        index += 1;
+    }
+    itv.index();
+
+    std::cout << uSec(t0) << ",";  // construct
+
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        itv.findOverlaps(item.start, item.end - 1, a);
+        found += a.size();
+        a.clear();
+    }
+    std::cerr << uSec(t1) << "," << found << ",";  // find all overlapping
+
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        found += itv.countOverlaps(item.start, item.end - 1);
+    }
+    std::cerr << uSec(t1) << "," << found << ",";  // count all overlapping
+
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        itv.findStabbed(item.start, a);
+        found += a.size();
+        a.clear();
+    }
+    std::cerr << uSec(t1) << "," << found << ",";  // find all stabbed
+
+    found = 0;
+    t1 = high_resolution_clock::now();
+    for (const auto& item : queries) {
+        found += itv.countStabbed(item.start);
+    }
+    std::cerr << uSec(t1) << "," << found << std::endl;  // count all stabbed
+}
+
+void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
+    a.reserve(10000); b.reserve(10000);
+
+    run_FastStabbing(intervals, queries);
+
+    run_IITree(intervals, queries);
+
+//    run_cgranges(intervals, queries);
+
+    run_ITree(intervals, queries);
+
+    run_NCLS(intervals, queries);
+
+    auto itv = SuperIntervals<int, size_t>();
+    run_SuperIntervals(intervals, queries, itv, "SuperIntervals");
+
+    auto itv2 = SuperIntervalsEytz<int, size_t>();
+    run_SuperIntervals(intervals, queries, itv2, "SuperIntervalsEytz");
+
+    auto itv3 = SuperIntervalsDense<int, size_t>();
+    run_SuperIntervals(intervals, queries, itv3, "SuperIntervalsDense");
 
 }
+
+} // namespace Bench
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
 		printf("Usage: run-cpp-libs <reference.bed> <query.bed>\n");
-		return 0;
+		return -1;
 	}
-    std::vector<BedInterval> intervals;
-    std::vector<BedInterval> queries;
+    std::vector<Bench::BedInterval> intervals;
+    std::vector<Bench::BedInterval> queries;
 
-    load_intervals(std::string(argv[1]), argv[2], intervals, queries);
-    run_tools(intervals, queries);
+    Bench::load_intervals(std::string(argv[1]), argv[2], intervals, queries);
+    Bench::run_tools(intervals, queries);
+
+    return 0;
 }

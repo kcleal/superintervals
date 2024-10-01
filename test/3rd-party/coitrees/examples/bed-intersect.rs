@@ -2,7 +2,7 @@ use coitrees::*;
 
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::str;
 use std::time::Instant;
 
@@ -63,141 +63,107 @@ fn parse_bed_line(line: &[u8]) -> (&str, i32, i32) {
 type IntervalHashMap = FnvHashMap<String, Vec<Interval<()>>>;
 
 // Read a bed file into a COITree
-fn read_bed_file(path: &str) -> Result<FnvHashMap<String, COITree<(), u32>>, GenericError> {
+fn read_bed_file(path: &str, name: &str) -> Result<FnvHashMap<String, COITree<(), u32>>, GenericError> {
     let mut nodes = IntervalHashMap::default();
-
-    let now = Instant::now();
-
     let file = File::open(path)?;
     let mut rdr = BufReader::new(file);
-    let mut line_count = 0;
     let mut line = Vec::new();
-
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (seqname, first, last) = parse_bed_line(&line);
-
         let node_arr = if let Some(node_arr) = nodes.get_mut(seqname) {
             node_arr
         } else {
             nodes.entry(seqname.to_string()).or_insert(Vec::new())
         };
-
         node_arr.push(Interval::new(first, last, ()));
-
-        line_count += 1;
         line.clear();
     }
-    eprintln!(
-        "reading bed: {}s",
-        now.elapsed().as_millis() as f64 / 1000.0
-    );
-    eprintln!("lines: {}", line_count);
-    eprintln!("sequences: {}", nodes.len());
-
     let now = Instant::now();
     let mut trees = FnvHashMap::<String, COITree<(), u32>>::default();
     for (seqname, seqname_nodes) in nodes {
         trees.insert(seqname, COITree::new(&seqname_nodes));
     }
-    eprintln!("veb_order: {}s", now.elapsed().as_millis() as f64 / 1000.0);
-
+    eprint!("{}\t{}\t", name, now.elapsed().as_micros());
+    std::io::stderr().flush().unwrap();
     Ok(trees)
 }
 
 
 fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericError> {
-    let tree = read_bed_file(filename_a)?;
-
+    let tree = read_bed_file(filename_a, "Coitrees")?;
     let file = File::open(filename_b)?;
     let mut rdr = BufReader::new(file);
-
     let mut ranges: Vec<(i32, i32)> = Vec::new();
     let mut line = Vec::new();
-
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (_, first, last) = parse_bed_line(&line);
         ranges.push((first, last));
         line.clear();
     }
-
     let seqname_tree = tree.get("chr1").ok_or("Chromosome tree not found")?;
 
+    // Find overlaps (collecting results)
+    let mut total_found = 0;
+    let mut results = Vec::new();
+    results.reserve(10000);
+    let mut now = Instant::now();
+    for &(first, last) in &ranges {
+        seqname_tree.query(first, last, |node| {
+            results.push(node.metadata);
+        });
+        total_found += results.len();
+        results.clear();
+    }
+    eprint!("{}\t{}\t", now.elapsed().as_micros(), total_found);
+    std::io::stderr().flush().unwrap();
+
     // Count overlaps
-    let now = Instant::now();
+    now = Instant::now();
     let total_count: usize = ranges.iter()
         .map(|&(first, last)| seqname_tree.query_count(first, last))
         .sum();
-    let count_elapsed = now.elapsed();
-    println!("Total count: {}, Count Time taken: {:?}", total_count, count_elapsed);
-
-    // Find overlaps (collecting results)
-    let now = Instant::now();
-    let mut total_found = 0;
-
-    let mut results = Vec::new();
-    results.reserve(10000);
-    for &(first, last) in &ranges {
-//         let mut found = 0;
-        seqname_tree.query(first, last, |node| {
-            results.push(node.metadata);
-//                 found += 1;
-        });
-//         results.push(found);
-        total_found += results.len();
-        results.clear();
-
-    }
-
-    let find_elapsed = now.elapsed();
-    println!("Total found: {}, Find Time taken: {:?}", total_found, find_elapsed);
+    eprint!("{}\t{}\n", now.elapsed().as_micros(), total_count);
+    std::io::stderr().flush().unwrap();
 
     Ok(())
 }
 
-fn query_bed_files_with_sorted_querent(
-    filename_a: &str,
-    filename_b: &str,
-) -> Result<(), GenericError> {
-    let trees = read_bed_file(filename_a)?;
 
-    let file = File::open(filename_b)?;
-    let mut rdr = BufReader::new(file);
-    let mut line = Vec::new();
-
-    let mut total_count: usize = 0;
-    let now = Instant::now();
+fn query_bed_files_with_sorted_querent(filename_a: &str, filename_b: &str) -> Result<(), GenericError> {
+    let trees = read_bed_file(filename_a, "Coitrees-s")?;
 
     let mut querents = FnvHashMap::<String, COITreeSortedQuerent<(), u32>>::default();
     for (seqname, tree) in &trees {
         querents.insert(seqname.clone(), COITreeSortedQuerent::new(tree));
     }
 
+    let file = File::open(filename_b)?;
+    let mut rdr = BufReader::new(file);
+    let mut ranges: Vec<(i32, i32)> = Vec::new();
+    let mut line = Vec::new();
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
-        let (seqname, first, last) = parse_bed_line(&line);
-
-        let mut count: usize = 0;
-        if let Some(querent) = querents.get_mut(seqname) {
-            querent.query(first, last, |_| count += 1);
-        }
-
-        // unfortunately printing in c is quite a bit faster than rust
-        unsafe {
-            let linelen = line.len();
-            line[linelen - 1] = b'\0';
-            libc::printf(
-                b"%s\t%u\n\0".as_ptr() as *const libc::c_char,
-                line.as_ptr() as *const libc::c_char,
-                count as u32,
-            );
-        }
-
-        total_count += count;
-
+        let (_, first, last) = parse_bed_line(&line);
+        ranges.push((first, last));
         line.clear();
     }
 
-    eprintln!("overlap: {}s", now.elapsed().as_millis() as f64 / 1000.0);
-    eprintln!("Sorted func total overlaps: {}", total_count);
+    // Use `get_mut` to get a mutable reference
+    let seqname_tree = querents.get_mut("chr1").ok_or("Chromosome tree not found")?;
+
+    // Find overlaps (collecting results)
+    let mut total_found = 0;
+    let mut results = Vec::new();
+    results.reserve(10000);
+    let now = Instant::now();
+    for &(first, last) in &ranges {
+        seqname_tree.query(first, last, |node| {
+            results.push(node.metadata);
+        });
+        total_found += results.len();
+        results.clear();
+    }
+    eprint!("{}\t{}\n", now.elapsed().as_micros(), total_found);
+    std::io::stderr().flush().unwrap();
 
     Ok(())
 }

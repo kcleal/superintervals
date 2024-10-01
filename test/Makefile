@@ -16,14 +16,15 @@ endif
 
 all:$(EXE)
 
-build_ncls: ./3rd-party/intervaldb.c
+build_clibs:
 	$(CC) $(CFLAGS) -c ./3rd-party/intervaldb.c -o intervaldb.o
+	$(CC) $(CFLAGS) -c ./3rd-party/cgranges.c -o cgranges.o
 
 run-tests: tests.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDE) $< $(LIBS) -o run-tests
 
-run-cpp-libs: bench.cpp build_ncls
-	$(CXX) $(CXXFLAGS) $(INCLUDE) $< intervaldb.o $(LIBS) -o $@
+run-cpp-libs: bench.cpp build_clibs
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $< cgranges.o intervaldb.o $(LIBS) -o $@
 
 clean:
 	rm -fr *.o a.out *.dSYM $(EXE)

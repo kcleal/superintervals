@@ -276,9 +276,9 @@ class SuperIntervals {
                         __m256i ends_vec = _mm256_load_si256((__m256i*)(&ends[j - simd_width + 1]));
                         __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
                         int mask = _mm256_movemask_epi8(~cmp_mask);
-                        count += _mm_popcnt_u32(mask) / 4;  // Each comparison result is 4 bits
+                        count += _mm_popcnt_u32(mask);
                     }
-                    found += count;
+                    found += count / 4;  // Each comparison result is 4 bits
                     i -= block;
                     if (count < block) {
                         break;
@@ -326,6 +326,111 @@ class SuperIntervals {
         return found;
     }
 
+    void findStabbed(const S point, std::vector<T>& found) {
+        if (starts.empty()) {
+            return;
+        }
+        upperBound(point);
+        size_t i = idx;
+        while (i > 0) {
+            if (point <= ends[i]) {
+                found.push_back(data[i]);
+                --i;
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && point <= ends[0] && starts[0] <= point) {
+            found.push_back(data[0]);
+        }
+    }
+
+    size_t countStabbed(const S point) noexcept {
+        if (starts.empty()) {
+            return 0;
+        }
+        upperBound(point);
+        size_t found = 0;
+        size_t i = idx;
+
+#ifdef __AVX2__
+        __m256i start_vec = _mm256_set1_epi32(point);
+        constexpr size_t simd_width = 256 / (sizeof(S) * 8);
+        constexpr size_t block = simd_width * 4;
+#elif defined __ARM_NEON
+        int32x4_t start_vec = vdupq_n_s32(point);
+        constexpr size_t simd_width = 128 / (sizeof(S) * 8);
+        uint32x4_t ones = vdupq_n_u32(1);
+        constexpr size_t block = simd_width * 4;
+#else
+        constexpr size_t block = 16;
+#endif
+
+        while (i > 0) {
+            if (point <= ends[i]) {
+                ++found;
+                --i;
+
+#ifdef __AVX2__
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; j -= simd_width) {
+                        __m256i ends_vec = _mm256_load_si256((__m256i*)(&ends[j - simd_width + 1]));
+                        __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
+                        int mask = _mm256_movemask_epi8(~cmp_mask);
+                        count += _mm_popcnt_u32(mask);
+                    }
+                    found += count / 4;  // Each comparison result is 4 bits
+                    i -= block;
+                    if (count < block) {
+                        break;
+                    }
+                }
+#elif defined __ARM_NEON
+                while (i > block) {
+                    size_t count = 0;
+                    uint32x4_t bool_mask;
+                    for (size_t j = i; j > i - block; j -= simd_width) { // Neon processes 4 int32 at a time
+                        int32x4_t ends_vec = vld1q_s32(&ends[j - simd_width + 1]);
+                        uint32x4_t mask = vcleq_s32(start_vec, ends_vec);
+                        bool_mask = vandq_u32(mask, ones); // Convert -1 to 1 for true elements
+                        count += vaddvq_u32(bool_mask);
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#else
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; --j) {
+                        count += (start <= ends[j]) ? 1 : 0;
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // check for a branch
+                        break;
+                    }
+                }
+#endif
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && point <= ends[0] && starts[0] <= point) {
+            ++found;
+        }
+        return found;
+    }
+
     protected:
 
     S it_low, it_high;
@@ -349,9 +454,160 @@ class SuperIntervals {
     }
 
 #ifdef __cpp_lib_hardware_interference_size
-    using std::hardware_constructive_interference_size;  // Corresponds to cache line size
+    static constexpr std::size_t hardware_constructive_interference_size = std::hardware_constructive_interference_size;  // Corresponds to cache line size
 #else
     static constexpr std::size_t hardware_constructive_interference_size = 64;
 #endif
 
+};
+
+
+template<typename S, typename T>
+class SuperIntervalsEytz : public SuperIntervals<S, T> {
+public:
+
+//    alignas(alignof(std::vector<S>)) std::vector<S> extent;
+
+    void index() override {
+        if (this->starts.size() == 0) {
+            return;
+        }
+        this->starts.shrink_to_fit();
+        this->ends.shrink_to_fit();
+        this->data.shrink_to_fit();
+        this->sortIntervals();
+
+        eytz.resize(this->starts.size() + 1);
+        eytz_index.resize(this->starts.size() + 1);
+        eytzinger(&this->starts[0], this->starts.size());
+
+        this->branch.resize(this->starts.size(), SIZE_MAX);
+        std::vector<std::pair<S, size_t>> br;
+        br.reserve(1000);
+        br.emplace_back() = {this->ends[0], 0};
+        for (size_t i=1; i < this->ends.size(); ++i) {
+            while (!br.empty() && br.back().first < this->ends[i]) {
+                br.pop_back();
+            }
+            if (!br.empty()) {
+                this->branch[i] = br.back().second;
+            }
+            br.emplace_back() = {this->ends[i], i};
+        }
+        this->idx = 0;
+    }
+
+    inline void upperBound(const S x) noexcept override {
+         size_t i = 0;
+         const size_t n_intervals = this->starts.size();
+         while (i < n_intervals) {
+             if (eytz[i] > x) {
+                 i = 2 * i + 1;
+             } else {
+                 i = 2 * i + 2;
+             }
+         }
+         int shift = __builtin_ffs(~(i + 1));
+         size_t best_idx = (i >> shift) - ((shift > 1) ? 1 : 0);
+         this->idx = (best_idx < n_intervals) ? eytz_index[best_idx] : n_intervals - 1;
+         if (this->idx > 0 && this->starts[this->idx] > x) {
+             --this->idx;
+         }
+    }
+
+private:
+    std::vector<S> eytz;
+    std::vector<size_t> eytz_index;
+
+    size_t eytzinger_helper(S* arr, size_t n, size_t i, size_t k) {
+        if (k < n) {
+            i = eytzinger_helper(arr, n, i, 2*k+1);
+            eytz[k] = this->starts[i];
+            eytz_index[k] = i;
+            ++i;
+            i = eytzinger_helper(arr, n, i, 2*k + 2);
+        }
+        return i;
+    }
+
+    int eytzinger(S* arr, size_t n) {
+        return eytzinger_helper(arr, n, 0, 0);
+    }
+};
+
+
+template<typename S, typename T>
+class SuperIntervalsDense : public SuperIntervals<S, T> {
+public:
+
+    void index() override {
+        if (this->starts.size() == 0) {
+            return;
+        }
+        if (this->starts.size() == 1) {
+            dense.resize(1, 0);
+        }
+        this->starts.shrink_to_fit();
+        this->ends.shrink_to_fit();
+        this->data.shrink_to_fit();
+        this->sortIntervals();
+
+        // Could probably use a queue here to make dense vector in O(n) time
+        min_value = this->starts.front();
+        max_value = *std::max_element(this->ends.begin(), this->ends.end());
+        S max_size = max_value - min_value;
+        dense.resize((size_t)max_size, INT_MAX);
+        size_t index, end_index;
+        for (int i = this->starts.size() - 1; i >= 0; --i) {
+            index = (size_t)((this->starts[i] - min_value));
+            end_index = (size_t)(this->ends[i] - min_value);
+            for (size_t j=index; j < end_index + 1; ++j) {
+                if (dense[j] == INT_MAX) {
+                    dense[j] = i;
+                }
+            }
+            ++end_index;
+            while (end_index < dense.size() && dense[end_index] == INT_MAX) {
+                dense[end_index] = i;
+                ++end_index;
+            }
+        }
+
+        this->branch.resize(this->starts.size(), SIZE_MAX);
+        std::vector<std::pair<S, size_t>> br;
+        br.reserve(1000);
+        br.emplace_back() = {this->ends[0], 0};
+        for (size_t i=1; i < this->ends.size(); ++i) {
+            while (!br.empty() && br.back().first < this->ends[i]) {
+                br.pop_back();
+            }
+            if (!br.empty()) {
+                this->branch[i] = br.back().second;
+            }
+            br.emplace_back() = {this->ends[i], i};
+        }
+        this->idx = 0;
+    }
+
+    inline void upperBound(const S x) noexcept override {
+        size_t i = 0;
+        if (min_value > x) {
+            this->idx = 0;
+            return;
+        } else if (x > max_value) {
+            this->idx = this->starts.size() - 1;
+            return;
+        }
+        size_t target_idx = (size_t)(x - min_value);
+
+        this->idx = (size_t)dense[target_idx];
+        if (this->idx > this->starts.size()) {
+            this->idx = 0;
+        }
+    }
+
+private:
+    std::vector<uint32_t> dense;
+
+    S min_value, max_value;
 };

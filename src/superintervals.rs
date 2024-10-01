@@ -187,31 +187,35 @@ where
             {
                 use std::arch::x86_64::*;
                 let start_vec = _mm256_set1_epi32(start);
-                const SIMD_WIDTH: usize = 256 / (core::mem::size_of::<i32>() * 8);
-                const BLOCK: usize = SIMD_WIDTH * 4;
+                let ones: __m256i = _mm256_set1_epi32(1);
+                const SIMD_WIDTH: usize = 8; //usize = 256 / (core::mem::size_of::<i32>() * 8);
+                const BLOCK: usize = 32; //SIMD_WIDTH * 8;
+
                 while i > 0 {
-                    if start <= self.ends[i] {
+                    if start <= *self.ends.get_unchecked(i) {
                         found += 1;
                         i -= 1;
                         while i > BLOCK {
                             let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
-                                let ends_vec = _mm256_load_si256(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const __m256i);
-                                let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
-                                let mask = _mm256_movemask_epi8(_mm256_xor_si256(cmp_mask, _mm256_set1_epi32(-1)));
-                                count += mask.count_ones() as usize / 4;  // Each comparison result is 4 bits
+                                let ends_vec = _mm256_loadu_si256(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const __m256i);
+                                // Add one to convert the greater than to greater or equal than
+                                let adj_ends_vec = _mm256_add_epi32(ends_vec, ones);
+                                let cmp_mask = _mm256_cmpgt_epi32(adj_ends_vec, start_vec);
+                                let mask = _mm256_movemask_epi8(cmp_mask);
+                                count += mask.count_ones() as usize;
                             }
-                            found += count;
+                            found += count / 4;  // Each comparison result is 4 bits
                             i -= BLOCK;
                             if count < BLOCK {
                                 break;
                             }
                         }
                     } else {
-                        if self.branch[i] >= i {
+                        if *self.branch.get_unchecked(i) >= i {
                             break;
                         }
-                        i = self.branch[i];
+                        i = *self.branch.get_unchecked(i);
                     }
                 }
             }
@@ -220,11 +224,11 @@ where
             {
                 use std::arch::aarch64::*;
                 let start_vec = vdupq_n_s32(start);
-                const SIMD_WIDTH: usize = 128 / (core::mem::size_of::<i32>() * 8);
-                const BLOCK: usize = SIMD_WIDTH * 4;
+                const SIMD_WIDTH: usize = 4; //128 / (core::mem::size_of::<i32>() * 8);
+                const BLOCK: usize = 32; // SIMD_WIDTH * 4;
                 let ones = vdupq_n_u32(1);
                 while i > 0 {
-                    if start <= self.ends[i] {
+                    if start <= *self.ends.get_unchecked(i) {
                         found += 1;
                         i -= 1;
                         while i > BLOCK {
@@ -242,10 +246,10 @@ where
                             }
                         }
                     } else {
-                        if self.branch[i] >= i {
+                        if *self.branch.get_unchecked(i) >= i {
                             break;
                         }
-                        i = self.branch[i];
+                        i = *self.branch.get_unchecked(i);
                     }
                 }
             }
@@ -254,13 +258,13 @@ where
             {
                 const BLOCK: usize = 16;
                 while i > 0 {
-                    if start <= self.ends[i] {
+                    if start <= *self.ends.get_unchecked(i) {
                         found += 1;
                         i -= 1;
                         while i > BLOCK {
                             let mut count = 0;
                             for j in (i - BLOCK + 1..=i).rev() {
-                                if start <= self.ends[j] {
+                                if start <= *self.ends.get_unchecked(j) {
                                     count += 1;
                                 }
                             }
@@ -271,14 +275,14 @@ where
                             }
                         }
                     } else {
-                        if self.branch[i] >= i {
+                        if *self.branch.get_unchecked(i) >= i {
                             break;
                         }
-                        i = self.branch[i];
+                        i = *self.branch.get_unchecked(i);
                     }
                 }
             }
-            if i == 0 && start <= self.ends[0] && self.starts[0] <= end {
+            if i == 0 && start <= *self.ends.get_unchecked(0) && *self.starts.get_unchecked(0) <= end {
                 found += 1;
             }
         }
@@ -289,20 +293,131 @@ where
     where
         F: Fn(&Interval<T>, &Interval<T>) -> Ordering,
     {
-        let range_size = end_i - start_i;
-        let mut tmp: Vec<Interval<T>> = Vec::with_capacity(range_size);
-        for i in 0..range_size {
-            tmp.push(Interval {
-                start: self.starts[start_i + i],
-                end: self.ends[start_i + i],
-                data: self.data[start_i + i].clone(),
-            });
+        unsafe {
+            let range_size = end_i - start_i;
+            let mut tmp: Vec<Interval<T>> = Vec::with_capacity(range_size);
+            for i in 0..range_size {
+                tmp.push(Interval {
+                    start: *self.starts.get_unchecked(start_i + i),
+                    end: *self.ends.get_unchecked(start_i + i),
+                    data: (*self.data.get_unchecked(start_i + i)).clone(),
+                });
+            }
+            tmp.sort_by(compare);
+            for i in 0..range_size {
+                self.starts[start_i + i] = tmp.get_unchecked(i).start;
+                self.ends[start_i + i] = tmp.get_unchecked(i).end;
+                self.data[start_i + i] = tmp.get_unchecked(i).data.clone();
+            }
         }
-        tmp.sort_by(compare);
-        for i in 0..range_size {
-            self.starts[start_i + i] = tmp[i].start;
-            self.ends[start_i + i] = tmp[i].end;
-            self.data[start_i + i] = tmp[i].data.clone();
+    }
+}
+
+
+// Eytzinger layout
+
+pub struct SuperIntervalsEytz<T> {
+    inner: SuperIntervals<T>,
+    eytz: Vec<i32>,
+    eytz_index: Vec<usize>,
+}
+
+#[inline(always)]
+pub fn ffs(x: u32) -> u32 {
+    if x == 0 {
+        0
+    } else {
+        x.trailing_zeros() + 1
+    }
+}
+
+impl<T> SuperIntervalsEytz<T>
+where
+    T: Clone,
+{
+    pub fn new() -> Self {
+        SuperIntervalsEytz {
+            inner: SuperIntervals::new(),
+            eytz: Vec::new(),
+            eytz_index: Vec::new(),
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.inner.clear();
+        self.eytz.clear();
+        self.eytz_index.clear();
+    }
+
+    pub fn add(&mut self, start: i32, end: i32, value: T) {
+        self.inner.add(start, end, value);
+    }
+
+    pub fn sort_intervals(&mut self) {
+        self.inner.sort_intervals();
+    }
+
+    fn eytzinger_helper(&mut self, mut i: usize, k: usize, n: usize) -> usize {
+        unsafe {
+            if k < n {
+                i = self.eytzinger_helper(i, 2*k+1, n);
+                self.eytz[k] = *self.inner.starts.get_unchecked(i);
+                self.eytz_index[k] = i;
+                i += 1;
+                i = self.eytzinger_helper(i, 2*k+2, n);
+            }
+        }
+        i
+    }
+
+    pub fn index(&mut self) {
+        if self.inner.starts.is_empty() {
+            return;
+        }
+        self.sort_intervals();
+        self.eytz.resize(self.inner.starts.len() + 1, 0);
+        self.eytz_index.resize(self.inner.starts.len() + 1, 0);
+        self.eytzinger_helper(0, 0, self.inner.starts.len());
+
+        self.inner.branch.resize(self.inner.starts.len(), usize::MAX);
+        unsafe {
+            for i in 0..self.inner.ends.len() - 1 {
+                for j in i + 1..self.inner.ends.len() {
+                    if self.inner.ends.get_unchecked(j) >= self.inner.ends.get_unchecked(i) {
+                        break;
+                    }
+                    self.inner.branch[j] = i;
+                }
+            }
+        }
+        self.inner.idx = 0;
+    }
+
+    pub fn upper_bound(&mut self, x: i32) {
+        unsafe {
+            let mut i: usize = 0;
+            let n_intervals: usize = self.inner.starts.len();
+            while i < n_intervals {
+                if *self.eytz.get_unchecked(i) > x {
+                    i = 2 * i + 1;
+                } else {
+                    i = 2 * i + 2;
+                }
+            }
+            let shift: u32 = ffs(!(i as u32 + 1));
+            let best_idx: usize = (i >> shift) - ( if shift > 1 { 1 } else { 0 } );
+            self.inner.idx = if best_idx < n_intervals { *self.eytz_index.get_unchecked(best_idx) } else { n_intervals - 1 };
+            if self.inner.idx > 0 && *self.inner.starts.get_unchecked(self.inner.idx) > x {
+                self.inner.idx -= 1;
+            }
+        }
+    }
+
+    pub fn find_overlaps(&mut self, start: i32, end: i32, found: &mut Vec<T>) {
+        self.inner.find_overlaps(start, end, found)
+    }
+
+    pub fn count_overlaps(&mut self, start: i32, end: i32) -> usize {
+        self.inner.count_overlaps(start, end)
     }
 }

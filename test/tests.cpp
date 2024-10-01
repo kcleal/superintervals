@@ -1,5 +1,6 @@
 
 #include "superintervals.hpp"
+#include "superintervalsExtra.hpp"
 #include <iostream>
 #include <vector>
 #include <cassert>
@@ -13,11 +14,11 @@ void print_vec(std::vector<size_t>& a, SuperIntervals<int, int>& itv) {
 }
 
 
-void superTests() {
+void superTests(SuperIntervals<int, int> &itv, std::string name) {
     std::vector<int> a;
 
-    std::cout << "\n SuperIntervals tests \n";
-    auto itv = SuperIntervals<int, int>();
+    std::cout << "\n" << name << " tests \n";
+
     std::cout << "0, ";
     itv.add(10, 20, 0);
     itv.add(11, 12, -1);
@@ -50,7 +51,7 @@ void superTests() {
     itv.clear(); a.clear();
 
     std::cout << "2, ";
-    itv.add(0, 250000000, 0);
+    itv.add(0, 250000, 0);
     itv.add(55, 1055, -1);
     itv.add(115, 1115, -1);
     itv.add(130, 1130, -1);
@@ -238,12 +239,17 @@ void superTests() {
     assert (count == 0);
     itv.clear(); a.clear();
 
-    std::cout << "All tests passed for SuperIntervals\n";
+    std::cout << "All tests passed for " << name << "\n";
 
 }
 
 
 int main(int argc, char *argv[]) {
-    superTests();
+    auto itv = SuperIntervals<int, int>();
+    superTests(itv, "SuperIntervals");
+    auto itv2 = SuperIntervalsEytz<int, int>();
+    superTests(itv2, "SuperIntervalsEytz");
+    auto itv3 = SuperIntervalsDense<int, int>();
+    superTests(itv3, "SuperIntervalsDense");
     return 0;
 }

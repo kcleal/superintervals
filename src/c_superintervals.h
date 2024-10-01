@@ -260,9 +260,9 @@ void upperBound(cSuperIntervals* si, int32_t value) {
     if (length >= entries_per_256KB) {
         while (length >= 3 * num_per_cache_line) {
             size_t half = length / 2;
-            __builtin_prefetch(&si->starts[si->idx + half / 2]);
+//            __builtin_prefetch(&si->starts[si->idx + half / 2]);
             size_t first_half1 = si->idx + (length - half);
-            __builtin_prefetch(&si->starts[first_half1 + half / 2]);
+//            __builtin_prefetch(&si->starts[first_half1 + half / 2]);
             si->idx += (si->starts[si->idx + half] <= value) * (length - half);
             length = half;
         }
