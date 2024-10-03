@@ -1,25 +1,29 @@
-/*
-SuperIntervals - a static data structure for finding interval intersections
 
-Notes
------
- - intervals are considered end-inclusive
- - the index() function must be called before any queries. If more
-   intervals are added, call index() again.
-
-*/
 #pragma once
 
 #include <algorithm>
 #include <vector>
 #include <iostream>
-#ifdef __AVX2__
+#if defined(__AVX2__)
     #include <immintrin.h>
-#elif defined __ARM_NEON
+#elif defined(__ARM_NEON__)
     #include <arm_neon.h>
 #endif
 
-// S for scalar for start, end. T for data type
+/**
+ * @file SuperIntervals.hpp
+ * @brief A static data structure for finding interval intersections
+ *
+ * SuperIntervals is a template class that provides efficient interval intersection operations.
+ * It supports adding intervals, indexing them for fast queries, and performing various
+ * intersection operations.
+ *
+ * @note Intervals are considered end-inclusive
+ * @note The index() function must be called before any queries. If more intervals are added, call index() again.
+ *
+ * @tparam S The scalar type for interval start and end points (e.g., int, float)
+ * @tparam T The data type associated with each interval
+ */
 template<typename S, typename T>
 class SuperIntervals {
     public:
@@ -46,18 +50,35 @@ class SuperIntervals {
 
     ~SuperIntervals() = default;
 
+    /**
+     * @brief Clears all intervals and resets the data structure
+     */
     void clear() {
         data.clear(); starts.clear(); ends.clear(); branch.clear(); idx = 0;
     }
 
+    /**
+     * @brief Reserves memory for a specified number of intervals
+     * @param n Number of intervals to reserve space for
+     */
     void reserve(size_t n) {
         data.reserve(n); starts.reserve(n); ends.reserve(n);
     }
 
+    /**
+    * @brief Returns the number of intervals in the data structure
+    * @return Number of intervals
+    */
     size_t size() {
         return starts.size();
     }
 
+    /**
+     * @brief Adds a new interval to the data structure
+     * @param start Start point of the interval
+     * @param end End point of the interval
+     * @param value Data associated with the interval
+     */
     void add(S start, S end, const T& value) {
         if (startSorted && !starts.empty()) {
             startSorted = (start < starts.back()) ? false : true;
@@ -70,32 +91,12 @@ class SuperIntervals {
         data.emplace_back(value);
     }
 
-    void sortIntervals() {
-        if (!startSorted) {
-            sortBlock(0, starts.size(),
-                [](const Interval& a, const Interval& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
-            startSorted = true;
-            endSorted = true;
-        } else if (!endSorted) {  // only sort parts that need sorting - ends in descending order
-            size_t it_start = 0;
-            while (it_start < starts.size()) {
-                size_t block_end = it_start + 1;
-                bool needs_sort = false;
-                while (block_end < starts.size() && starts[block_end] == starts[it_start]) {
-                    if (block_end > it_start && ends[block_end] > ends[block_end - 1]) {
-                        needs_sort = true;
-                    }
-                    ++block_end;
-                }
-                if (needs_sort) {
-                    sortBlock(it_start, block_end, [](const Interval& a, const Interval& b) { return a.end > b.end; });
-                }
-                it_start = block_end;
-            }
-            endSorted = true;
-        }
-    }
-
+    /**
+     * @brief Indexes the intervals.
+     *
+     * This function must be called after adding intervals and before performing any queries.
+     * If more intervals are added after indexing, this function should be called again.
+     */
     virtual void index() {
         if (starts.size() == 0) {
             return;
@@ -120,6 +121,11 @@ class SuperIntervals {
         idx = 0;
     }
 
+    /**
+     * @brief Retrieves an interval at a specific index
+     * @param index The index of the interval to retrieve
+     * @return The Interval at the specified index
+     */
     Interval at(size_t index) {
         return Interval(starts[index], ends[index], data[index]);
     }
@@ -182,6 +188,11 @@ class SuperIntervals {
     Iterator begin() const { return Iterator(this, idx); }
     Iterator end() const { return Iterator(this, SIZE_MAX); }
 
+    /**
+     * @brief Sets the search interval. Must be called before using the iterator.
+     * @param start Start point of the search range
+     * @param end End point of the search range
+     */
     void searchInterval(const S start, const S end) noexcept {
         if (starts.empty()) {
             return;
@@ -284,23 +295,24 @@ class SuperIntervals {
                         break;
                     }
                 }
-#elif defined __ARM_NEON
+#elif defined(__ARM_NEON__)
                 while (i > block) {
                     size_t count = 0;
-                    uint32x4_t bool_mask;
+                    uint32x4_t mask, bool_mask;
                     for (size_t j = i; j > i - block; j -= simd_width) { // Neon processes 4 int32 at a time
                         int32x4_t ends_vec = vld1q_s32(&ends[j - simd_width + 1]);
-                        uint32x4_t mask = vcleq_s32(start_vec, ends_vec);
-                        bool_mask = vandq_u32(mask, ones); // Convert -1 to 1 for true elements
+                        mask = vcleq_s32(start_vec, ends_vec);  // True (0xFFFFFFFF) for elements where start_vec <= ends_vec
+                        bool_mask = vandq_u32(mask, ones);
                         count += vaddvq_u32(bool_mask);
                     }
                     found += count;
                     i -= block;
-                    if (count < block) {  // check for a branch
+//                    if (count < block && vgetq_lane_u32(mask, 0) == 0) {  // check for overlap again, before checking for branch?
+                    if (count < block) {  // check for overlap again, before checking for branch?
                         break;
                     }
                 }
-#else
+#else  // Rely on compiler auto vectorize
                 while (i > block) {
                     size_t count = 0;
                     for (size_t j = i; j > i - block; --j) {
@@ -308,7 +320,8 @@ class SuperIntervals {
                     }
                     found += count;
                     i -= block;
-                    if (count < block) {  // check for a branch
+                    if (count < block && start > ends[i + 1]) {  // check for a branch
+//                    if (count < block) {  // check for a branch
                         break;
                     }
                 }
@@ -401,7 +414,7 @@ class SuperIntervals {
                     }
                     found += count;
                     i -= block;
-                    if (count < block) {  // check for a branch
+                    if (count < block) {  // go check for a branch
                         break;
                     }
                 }
@@ -409,11 +422,11 @@ class SuperIntervals {
                 while (i > block) {
                     size_t count = 0;
                     for (size_t j = i; j > i - block; --j) {
-                        count += (start <= ends[j]) ? 1 : 0;
+                        count += (point <= ends[j]) ? 1 : 0;
                     }
                     found += count;
                     i -= block;
-                    if (count < block) {  // check for a branch
+                    if (count < block) {  // go check for a branch
                         break;
                     }
                 }
@@ -450,6 +463,32 @@ class SuperIntervals {
             starts[start_i + i] = tmp[i].start;
             ends[start_i + i] = tmp[i].end;
             data[start_i + i] = tmp[i].data;
+        }
+    }
+
+    void sortIntervals() {
+        if (!startSorted) {
+            sortBlock(0, starts.size(),
+                [](const Interval& a, const Interval& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
+            startSorted = true;
+            endSorted = true;
+        } else if (!endSorted) {  // only sort parts that need sorting - ends in descending order
+            size_t it_start = 0;
+            while (it_start < starts.size()) {
+                size_t block_end = it_start + 1;
+                bool needs_sort = false;
+                while (block_end < starts.size() && starts[block_end] == starts[it_start]) {
+                    if (block_end > it_start && ends[block_end] > ends[block_end - 1]) {
+                        needs_sort = true;
+                    }
+                    ++block_end;
+                }
+                if (needs_sort) {
+                    sortBlock(it_start, block_end, [](const Interval& a, const Interval& b) { return a.end > b.end; });
+                }
+                it_start = block_end;
+            }
+            endSorted = true;
         }
     }
 

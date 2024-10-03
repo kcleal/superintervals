@@ -1,5 +1,10 @@
+
+//! This module provides efficient data structures for managing and querying intervals.
+//! It includes implementations for standard and Eytzinger layout-based interval storage.
+
 use std::cmp::Ordering;
 
+/// Represents an interval with associated data.
 #[derive(Debug, Clone)]
 pub struct Interval<T> {
     start: i32,
@@ -7,6 +12,15 @@ pub struct Interval<T> {
     data: T,
 }
 
+
+/// A static data structure for finding interval intersections
+///
+/// SuperIntervals is a template class that provides efficient interval intersection operations.
+/// It supports adding intervals, indexing them for fast queries, and performing various
+/// intersection operations.
+///
+/// Intervals are considered end-inclusive
+/// The index() function must be called before any queries. If more intervals are added, call index() again.
 pub struct SuperIntervals<T> {
     starts: Vec<i32>,
     ends: Vec<i32>,
@@ -32,7 +46,7 @@ where
             end_sorted: true,
         }
     }
-
+    /// Clears all intervals from the structure.
     pub fn clear(&mut self) {
         self.starts.clear();
         self.ends.clear();
@@ -40,7 +54,13 @@ where
         self.data.clear();
         self.idx = 0;
     }
-
+    /// Adds a new interval to the structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The start point of the interval.
+    /// * `end` - The end point of the interval.
+    /// * `value` - The data associated with the interval.
     pub fn add(&mut self, start: i32, end: i32, value: T) {
         if self.start_sorted && !self.starts.is_empty() {
             self.start_sorted = start >= *self.starts.last().unwrap();
@@ -52,7 +72,7 @@ where
         self.ends.push(end);
         self.data.push(value);
     }
-
+    /// Sorts the intervals by start and -end.
     pub fn sort_intervals(&mut self) {
         if !self.start_sorted {
             self.sort_block(0, self.starts.len(), |a, b| {
@@ -89,7 +109,7 @@ where
             self.end_sorted = true;
         }
     }
-
+    /// Indexes the intervals. Must be called before queries are performed.
     pub fn index(&mut self) {
         if self.starts.is_empty() {
             return;
@@ -147,7 +167,13 @@ where
             self.idx -= 1;
         }
     }
-
+    /// Finds all intervals that overlap with the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The start of the range to check for overlaps.
+    /// * `end` - The end of the range to check for overlaps.
+    /// * `found` - A mutable vector to store the overlapping intervals' data.
     pub fn find_overlaps(&mut self, start: i32, end: i32, found: &mut Vec<T>) {
         if self.starts.is_empty() {
             return;
@@ -174,7 +200,16 @@ where
             }
         }
     }
-
+    /// Counts the number of intervals that overlap with the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The start of the range to check for overlaps.
+    /// * `end` - The end of the range to check for overlaps.
+    ///
+    /// # Returns
+    ///
+    /// The number of overlapping intervals.
     pub fn count_overlaps(&mut self, start: i32, end: i32) -> usize {
         if self.starts.is_empty() {
             return 0;
@@ -314,8 +349,7 @@ where
 }
 
 
-// Eytzinger layout
-
+/// A variant of `SuperIntervals` that uses the Eytzinger layout for faster searching.
 pub struct SuperIntervalsEytz<T> {
     inner: SuperIntervals<T>,
     eytz: Vec<i32>,

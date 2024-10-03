@@ -1,6 +1,6 @@
 
 #include "superintervals.hpp"
-#include "superintervalsExtra.hpp"
+
 #include <iostream>
 #include <vector>
 #include <cassert>

@@ -1,4 +1,4 @@
-CXXFLAGS=	-Ofast -std=c++17 -march=native -mtune=native -fomit-frame-pointer -fno-exceptions -fno-rtti
+CXXFLAGS=	-O3 -std=c++17 -march=native -mtune=native -fomit-frame-pointer -fno-exceptions -fno-rtti
 LIBS=
 EXE=		run-tests run-cpp-libs
 INCLUDE= -I../src -I./3rd-party
