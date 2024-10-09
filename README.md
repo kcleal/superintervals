@@ -12,13 +12,13 @@ Benchmark
 ---------
 
 C++ program compares SuperIntervals, ImplicitIntervalTree, IntervalTree, NCLS and FastStabbing algorithm:
-```
+```shell
 cd test; make
 ./run-cpp-libs a.bed b.bed
 ```
 
 Rust program:
-```
+```shell
 RUSTFLAGS="-Ctarget-cpu=native" cargo run --release --example bed-intersect-si
 ./target/release/examples/bed-intersect-si a.bed b.bed
 ```
@@ -27,7 +27,7 @@ Python usage
 ------------
 Install using `pip install superintervals`
 
-```
+```python
 from superintervals import IntervalSet
 
 iset = IntervalSet()
@@ -105,7 +105,7 @@ table. For this reason it is much slower to index and uses a lot of memory, but 
 Rust usage
 ----------
 
-```
+```rust
 use super_intervals::SuperIntervals;
 
 fn main() {
