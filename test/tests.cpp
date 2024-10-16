@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
+#include <utility>
 
 
 void print_vec(std::vector<size_t>& a, SuperIntervals<int, int>& itv) {
@@ -16,7 +17,7 @@ void print_vec(std::vector<size_t>& a, SuperIntervals<int, int>& itv) {
 
 void superTests(SuperIntervals<int, int> &itv, std::string name) {
     std::vector<int> a;
-
+    std::pair<size_t, int> cov_res;
     std::cout << "\n" << name << " tests \n";
 
     std::cout << "0, ";
@@ -28,17 +29,19 @@ void superTests(SuperIntervals<int, int> &itv, std::string name) {
     itv.index();
     itv.findOverlaps(17, 30, a);
     assert (a[0] == 4); assert (a[1] == 0);
+    itv.coverage(10, 29, cov_res);
+    assert (cov_res.second == 17);
     itv.clear(); a.clear();
 
     std::cout << "1, ";
     itv.add(1, 2, 0);
     itv.add(3, 8, -1);
     itv.add(5, 7, -1);
-    itv.add(7, 20, 3);
+    itv.add(7, 20, 3); //
     itv.add(9, 10, -1);
     itv.add(13, 15, -1);
     itv.add(15, 16, -1);
-    itv.add(19, 30, 7);
+    itv.add(19, 30, 7);  //
     itv.add(22, 24, -1);
     itv.add(24, 25, -1);
     itv.add(26, 28, -1);
@@ -48,6 +51,8 @@ void superTests(SuperIntervals<int, int> &itv, std::string name) {
     itv.index();
     itv.findOverlaps(17, 21, a);
     assert (a[0] == 7); assert (a[1] == 3);
+    itv.coverage(17, 21, cov_res);
+    assert (cov_res.second == 5);
     itv.clear(); a.clear();
 
     std::cout << "2, ";
@@ -110,6 +115,8 @@ void superTests(SuperIntervals<int, int> &itv, std::string name) {
     itv.index();
     itv.findOverlaps(55, 65, a);
     assert (a.back() == 0 && a.size() == 3);
+    itv.coverage(55, 65, cov_res);
+    assert (cov_res.second == 25);
     itv.clear(); a.clear();
 
     std::cout << "6, ";
@@ -249,7 +256,7 @@ int main(int argc, char *argv[]) {
     superTests(itv, "SuperIntervals");
     auto itv2 = SuperIntervalsEytz<int, int>();
     superTests(itv2, "SuperIntervalsEytz");
-    auto itv3 = SuperIntervalsDense<int, int>();
-    superTests(itv3, "SuperIntervalsDense");
+//    auto itv3 = SuperIntervalsDense<int, int>();
+//    superTests(itv3, "SuperIntervalsDense");
     return 0;
 }

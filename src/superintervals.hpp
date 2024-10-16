@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <vector>
 #include <iostream>
+#include <limits>
 #if defined(__AVX2__)
     #include <immintrin.h>
 #elif defined(__ARM_NEON__)
@@ -228,8 +229,26 @@ class SuperIntervals {
     }
 
     bool anyOverlaps(const S start, const S end) noexcept {
+        if (starts.empty()) {
+            return false;
+        }
         upperBound(end);
-        return start <= ends[idx];
+        size_t i = idx;
+        while (i > 0) {
+            if (start <= ends[i]) {
+                return true;
+                --i;
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
+            return true;
+        }
+        return false;
     }
 
     void findOverlaps(const S start, const S end, std::vector<T>& found) {
@@ -337,6 +356,36 @@ class SuperIntervals {
             ++found;
         }
         return found;
+    }
+
+    void coverage(const S start, const S end, std::pair<size_t, S> &cov_result) {
+        if (starts.empty()) {
+            cov_result.first = 0;
+            cov_result.second = 0;
+            return;
+        }
+        upperBound(end);
+        size_t i = idx;
+        size_t cnt = 0;
+        S cov = 0;
+        while (i > 0) {
+            if (start <= ends[i]) {
+                ++cnt;
+                cov += std::min(ends[i], end) - std::max(starts[i], start);
+                --i;
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
+            cov += std::min(ends[i], end) - std::max(starts[i], start);
+            ++cnt;
+        }
+        cov_result.first = cnt;
+        cov_result.second = cov;
     }
 
     void findStabbed(const S point, std::vector<T>& found) {
