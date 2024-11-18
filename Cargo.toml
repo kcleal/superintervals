@@ -9,7 +9,14 @@ homepage = "https://github.com/kcleal/superintervals"
 documentation = "https://github.com/kcleal/superintervals"
 readme = "README.md"
 license-file = "LICENSE"
-
+exclude = [
+    "test/*",
+    "src/superintervals/*",
+    "src/superintervals.egg*",
+    ".idea",
+    "dist",
+    "py*", "setup.py", "*.h", "*.hpp", "MANIFEST.in", ".gitignore"
+]
 
 [lib]
 path = "src/superintervals.rs"
