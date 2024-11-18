@@ -39,10 +39,6 @@ cdef extern from "superintervals.hpp":
         Iterator end() const
 
 
-ctypedef SuperIntervals.Iterator CppIterator
-ctypedef SuperIntervals.IntervalItem CppIntervalItem
-
-
 cdef class IntervalSet:
     cdef SuperIntervals* thisptr
     cdef vector[int] found

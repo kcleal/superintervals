@@ -58,7 +58,7 @@ cdef class IteratorWrapper:
 
     def __cinit__(self, IntervalSet interval_set):
         self._si = interval_set.thisptr
-        self._cpp_iterator = new CppIterator.Iterator(interval_set.thisptr, interval_set.thisptr.idx)
+        self._cpp_iterator = new SuperIntervals.Iterator.Iterator(interval_set.thisptr, interval_set.thisptr.idx)
 
     def __dealloc__(self):
         del self._cpp_iterator
