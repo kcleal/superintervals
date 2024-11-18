@@ -3,6 +3,7 @@
 //! It includes implementations for standard and Eytzinger layout-based interval storage.
 
 use std::cmp::Ordering;
+use std::cmp::{max, min};
 
 /// Represents an interval with associated data.
 #[derive(Debug, Clone)]
@@ -316,6 +317,44 @@ where
             }
         }
         found
+    }
+    /// Counts the total coverage over the query interval.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The start of the range to check for overlaps.
+    /// * `end` - The end of the range to check for overlaps.
+    ///
+    /// # Returns
+    ///
+    /// The number of overlapping intervals, plus the coverage.
+    pub fn coverage(&mut self, start: i32, end: i32) -> (usize, i32) {
+        if self.starts.is_empty() {
+            return (0, 0);
+        }
+        self.upper_bound(end);
+        let mut i = self.idx;
+        let mut cnt = 0;
+        let mut cov = 0;
+        unsafe {
+            while i > 0 {
+                if start <= *self.ends.get_unchecked(i) {
+                    cnt += 1;
+                    cov += min(*self.ends.get_unchecked(i), end) - max(*self.starts.get_unchecked(i), start);
+                    i -= 1;
+                } else {
+                    if *self.branch.get_unchecked(i) >= i {
+                        break;
+                    }
+                    i = *self.branch.get_unchecked(i);
+                }
+            }
+            if i == 0 && start <= *self.ends.get_unchecked(0) && *self.starts.get_unchecked(0) <= end {
+                cov += min(*self.ends.get_unchecked(i), end) - max(*self.starts.get_unchecked(i), start);
+                cnt += 1;
+            }
+        }
+        (cnt, cov)
     }
 
     fn sort_block<F>(&mut self, start_i: usize, end_i: usize, compare: F)
