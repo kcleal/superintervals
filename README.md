@@ -157,7 +157,7 @@ Timings were in microseconds using an i9-11900K, 64 GB, 2TB NVMe machine.
 
 ## Python
 
-Install using `pip install .`
+Install using `pip install superintervals`
 
 ```
 from superintervals import IntervalSet
@@ -235,6 +235,8 @@ uses an Eytzinger memory layout that can sometimes offer faster query times at t
 usage and slower indexing time.
 
 ## Rust
+
+Fetch using cargo add.
 
 ```
 use super_intervals::SuperIntervals;
