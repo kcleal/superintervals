@@ -20,6 +20,10 @@
 #
 # Data were assessed in position sorted and random order. Datasets can be found on the Releases page.
 #
+# For Coitrees, a benchmark program is available at:
+#     https://github.com/kcleal/superintervals/tree/main/test/3rd-party/coitrees/examples
+# This will need to be build before hand
+
 # Running:
 # --------
 # Run this script from the top-level superintervals repo

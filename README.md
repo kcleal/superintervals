@@ -33,7 +33,7 @@ iset.index()
 overlaps = iset.find_overlaps(8, 20)
 ```
 
-### 🇨 C++
+### ⚙️ C++
 ```cpp
 #include "SuperIntervals.hpp"
 
@@ -75,10 +75,10 @@ cargo run --release --example bed-intersect-si a.bed b.bed
 ## Benchmark
 
 SuperIntervals (SI) was compared with:
-1. Coitrees (Rust: https://github.com/dcjones/coitrees)
-2. Implicit Interval Tree (C++: https://github.com/lh3/cgranges)
-3. Interval Tree (C++: https://github.com/ekg/intervaltree)
-4. Nested Containment List (C: https://github.com/pyranges/ncls/tree/master/ncls/src)
+- Coitrees (Rust: https://github.com/dcjones/coitrees)
+- Implicit Interval Tree (C++: https://github.com/lh3/cgranges)
+- Interval Tree (C++: https://github.com/ekg/intervaltree)
+- Nested Containment List (C: https://github.com/pyranges/ncls/tree/master/ncls/src)
 
 Main results:
 - Roughly ~2-3x faster than the next best library (Coitrees for Rust, Implicit Interval Tree for C++)
@@ -90,7 +90,9 @@ Main results:
 4. Paired-end reads from sample DB53, NCBI BioProject PRJNA417592, (chr1, chrM)
 5. UCSC genes from hg19
 
-Note, programs only assess chr1 bed records - other chromosomes are ignored. For 'chrM' records,
+Test programs use internal timers and print data to stdout, measuring the 
+index time, and time to find all intersections. Other steps such as file IO are ignored. Test programs also 
+only assess chr1 bed records - other chromosomes are ignored. For 'chrM' records,
 the M was replaced with 1 using sed. Data were assessed in position sorted and random order.
 Datasets can be found on the Releases page, and the `test/run_tools.sh` script has instructions
 for how to repeat the benchmark.
