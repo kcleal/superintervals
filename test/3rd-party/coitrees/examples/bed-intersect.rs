@@ -183,10 +183,6 @@ struct Args {
     #[arg(short = 's', long = "sorted")]
     use_sorted_querent: bool,
 
-    /// load both interval sets into memory instead of streaming queries
-    #[arg(short = 't')]
-    tree_vs_tree: bool,
-
 }
 
 fn main() {

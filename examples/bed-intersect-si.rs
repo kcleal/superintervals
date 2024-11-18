@@ -199,13 +199,67 @@ struct Args {
     /// query intervals
     #[arg(value_name = "queries.bed")]
     input2: String,
+
+    /// compute proportion of queries covered
+    #[arg(short = 'c', long)]
+    coverage: bool,
+}
+
+fn query_bed_files_coverage(filename_a: &str, filename_b: &str) -> Result<(), GenericError> {
+    let mut trees: FnvHashMap<String, SuperIntervals<()>> = read_bed_file::<SuperIntervals<()>>(filename_a)?;
+//     let tree = read_bed_file(filename_a)?;
+
+    let file = File::open(filename_b)?;
+    let mut rdr = BufReader::new(file);
+    let mut line = Vec::new();
+
+    let mut total_count: usize = 0;
+    let now = Instant::now();
+
+    while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
+        let (seqname, first, last) = parse_bed_line(&line);
+
+        let mut cov: i32 = 0;
+        let mut count: usize = 0;
+
+        if let Some(seqname_tree) = trees.get_mut(seqname) {
+            let countcov = seqname_tree.coverage(first, last);
+            count = countcov.0;
+            cov = countcov.1;
+        }
+
+        unsafe {
+            let linelen = line.len();
+            line[linelen - 1] = b'\0';
+            libc::printf(
+                b"%s\t%u\t%u\n\0".as_ptr() as *const libc::c_char,
+                line.as_ptr() as *const libc::c_char,
+                count as u32,
+                cov,
+            );
+        }
+
+        total_count += count;
+
+        line.clear();
+    }
+
+    eprintln!("overlap: {}s", now.elapsed().as_millis() as f64 / 1000.0);
+    eprintln!("With coverage func total overlaps: {}", total_count);
+
+    Ok(())
 }
 
 fn main() {
     let matches = Args::parse();
     let input1 = matches.input1.as_str();
     let input2 = matches.input2.as_str();
-    let result = query_bed_files(input1, input2);
+    let result;
+    if matches.coverage {
+        result = query_bed_files_coverage(input1, input2);
+    } else {
+        result = query_bed_files(input1, input2);
+    }
     if let Err(err) = result {
         println!("error: {}", err)
     }
