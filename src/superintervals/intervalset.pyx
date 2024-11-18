@@ -54,8 +54,8 @@ cdef class IntervalSet:
 
 cdef class IteratorWrapper:
     cdef SuperIntervals.Iterator * _cpp_iterator
-
     cdef SuperIntervals * _si
+
     def __cinit__(self, IntervalSet interval_set):
         self._si = interval_set.thisptr
         self._cpp_iterator = new CppIterator.Iterator(interval_set.thisptr, interval_set.thisptr.idx)
@@ -67,15 +67,12 @@ cdef class IteratorWrapper:
         return self
 
     def __next__(self):
-        cdef CppIntervalItem item
-        cdef int start, end, data
-        if self._cpp_iterator[0] != self._cpp_iterator[0].end():
-            start = self._si.starts[self._cpp_iterator.it_index]
-            end =  self._si.ends[self._cpp_iterator.it_index]
-            data = self._si.data[self._cpp_iterator.it_index]
-            preincrement(self._cpp_iterator[0])
-            if self._cpp_iterator[0] == self._cpp_iterator[0].end():
-                raise StopIteration
-            return start, end, data
-        else:
+        if self._cpp_iterator[0] == self._cpp_iterator[0].end():
             raise StopIteration
+
+        cdef int start = self._si.starts[self._cpp_iterator.it_index]
+        cdef int end = self._si.ends[self._cpp_iterator.it_index]
+        cdef int data = self._si.data[self._cpp_iterator.it_index]
+
+        preincrement(self._cpp_iterator[0])
+        return start, end, data

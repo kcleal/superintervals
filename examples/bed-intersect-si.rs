@@ -113,7 +113,7 @@ fn read_bed_file<I: IntervalCollection<()>>(path: &str) -> Result<FnvHashMap<Str
     for intervals in nodes.values_mut() {
         intervals.index();
     }
-    eprint!("{}\t", now.elapsed().as_micros());
+    eprint!("{},", now.elapsed().as_micros());
     std::io::stderr().flush().unwrap();
     Ok(nodes)
 }

@@ -19,5 +19,12 @@
 /target
 /test/bed-intersect-si
 /src/intervalset.cpython-311-x86_64-linux-gnu.so
-/src/intervalset.cpp
+/src/superintervals/intervalset.cpp
 /src/superintervals.cpp
+/src/superintervals/intervalset.cpython-310-x86_64-linux-gnu.so
+/src/superintervals/intervalset.cpp
+/src/superintervals/intervalset.cpython-310-x86_64-linux-gnu.so
+/test/benchmark.png
+/test/cgranges.o
+/test/chr1.genome
+/old/

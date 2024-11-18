@@ -38,9 +38,6 @@ cdef extern from "superintervals.hpp":
         Iterator begin() const
         Iterator end() const
 
-        # Iterator begin()
-        # Iterator end()
-
 
 ctypedef SuperIntervals.Iterator CppIterator
 ctypedef SuperIntervals.IntervalItem CppIntervalItem

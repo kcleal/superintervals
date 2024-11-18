@@ -83,7 +83,7 @@ fn read_bed_file(path: &str, name: &str) -> Result<FnvHashMap<String, COITree<()
     for (seqname, seqname_nodes) in nodes {
         trees.insert(seqname, COITree::new(&seqname_nodes));
     }
-    eprint!("{}\t{}\t", name, now.elapsed().as_micros());
+    eprint!("{},{},", name, now.elapsed().as_micros());
     std::io::stderr().flush().unwrap();
     Ok(trees)
 }
@@ -114,7 +114,7 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
         total_found += results.len();
         results.clear();
     }
-    eprint!("{}\t{}\t", now.elapsed().as_micros(), total_found);
+    eprint!("{},{},", now.elapsed().as_micros(), total_found);
     std::io::stderr().flush().unwrap();
 
     // Count overlaps
@@ -122,7 +122,7 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     let total_count: usize = ranges.iter()
         .map(|&(first, last)| seqname_tree.query_count(first, last))
         .sum();
-    eprint!("{}\t{}\n", now.elapsed().as_micros(), total_count);
+    eprint!("{},{}\n", now.elapsed().as_micros(), total_count);
     std::io::stderr().flush().unwrap();
 
     Ok(())
@@ -162,7 +162,7 @@ fn query_bed_files_with_sorted_querent(filename_a: &str, filename_b: &str) -> Re
         total_found += results.len();
         results.clear();
     }
-    eprint!("{}\t{}\n", now.elapsed().as_micros(), total_found);
+    eprint!("{},{}\n", now.elapsed().as_micros(), total_found);
     std::io::stderr().flush().unwrap();
 
     Ok(())

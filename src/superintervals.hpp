@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <vector>
+#include <climits>
 #include <iostream>
 #if defined(__AVX2__)
     #include <immintrin.h>
@@ -211,7 +212,7 @@ class SuperIntervals {
         while (length >= num_per_cache_line) {
             size_t half = length / 2;
 //                __builtin_prefetch(&starts[idx + half / 2]);
-            size_t first_half1 = idx + (length - half);
+//            size_t first_half1 = idx + (length - half);
 //                __builtin_prefetch(&starts[first_half1 + half / 2]);
             idx += (starts[idx + half] <= value) * (length - half);
             length = half;

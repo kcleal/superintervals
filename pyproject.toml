@@ -2,7 +2,7 @@
 requires = [
     "setuptools>=42",
     "wheel",
-    "cython"
+    "Cython"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -10,4 +10,5 @@ build-backend = "setuptools.build_meta"
 name = "superintervals"
 version = "0.2.0"
 description = "Rapid interval intersections"
+dependencies = ['Cython']
 authors = [{name = "Kez Cleal", email = "clealk@cardiff.ac.uk"}]

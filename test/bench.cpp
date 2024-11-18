@@ -101,7 +101,7 @@ void load_intervals(const std::string& intervals_file,
 
 
 void run_FastStabbing(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
-    std::cout << "FastStabbing,";
+    std::cout << "FastStabbing-C++,";
     std::vector<intervalstab::interval> sti;
     sti.resize(intervals.size());
     int i = 0;
@@ -130,7 +130,7 @@ void run_FastStabbing(std::vector<BedInterval>& intervals, std::vector<BedInterv
 
 
 void run_IITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
-    std::cout << "ImplicitITree,";
+    std::cout << "ImplicitITree-C++,";
     t0 = high_resolution_clock::now();
     IITree<int, int> tree;
     index = 0;
@@ -182,7 +182,7 @@ void run_cgranges(std::vector<BedInterval>& intervals, std::vector<BedInterval>&
 }
 
 void run_ITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
-    std::cout << "IntervalTree,";
+    std::cout << "IntervalTree-C++,";
     std::vector<interval_tree::Interval<int, int>> intervals2;
     index = 0;
     for (const auto& item : intervals) {
@@ -203,7 +203,7 @@ void run_ITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
 }
 
 void run_NCLS(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
-    std::cout << "NestedContList,";
+    std::cout << "NCLS-C,";
     t0 = high_resolution_clock::now();
 
     int nD = (int)intervals.size();
@@ -291,7 +291,7 @@ void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInte
 void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
     a.reserve(10000); b.reserve(10000);
 
-    run_FastStabbing(intervals, queries);
+//    run_FastStabbing(intervals, queries);
 
     run_IITree(intervals, queries);
 
@@ -302,13 +302,13 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
     run_NCLS(intervals, queries);
 
     auto itv = SuperIntervals<int, size_t>();
-    run_SuperIntervals(intervals, queries, itv, "SuperIntervals");
+    run_SuperIntervals(intervals, queries, itv, "SuperIntervals-C++");
 
     auto itv2 = SuperIntervalsEytz<int, size_t>();
-    run_SuperIntervals(intervals, queries, itv2, "SuperIntervalsEytz");
+    run_SuperIntervals(intervals, queries, itv2, "SuperIntervalsEytz-C++");
 
-    auto itv3 = SuperIntervalsDense<int, size_t>();
-    run_SuperIntervals(intervals, queries, itv3, "SuperIntervalsDense");
+//    auto itv3 = SuperIntervalsDense<int, size_t>();
+//    run_SuperIntervals(intervals, queries, itv3, "SuperIntervalsDense-C++");
 
 }
 

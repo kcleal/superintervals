@@ -1,0 +1,3 @@
+from .intervalset import (
+    IntervalSet
+)

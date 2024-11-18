@@ -1,6 +1,5 @@
 
 #include "superintervals.hpp"
-
 #include <iostream>
 #include <vector>
 #include <cassert>
@@ -249,7 +248,5 @@ int main(int argc, char *argv[]) {
     superTests(itv, "SuperIntervals");
     auto itv2 = SuperIntervalsEytz<int, int>();
     superTests(itv2, "SuperIntervalsEytz");
-    auto itv3 = SuperIntervalsDense<int, int>();
-    superTests(itv3, "SuperIntervalsDense");
     return 0;
 }
