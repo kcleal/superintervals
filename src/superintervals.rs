@@ -130,6 +130,7 @@ where
                 if !br.is_empty() {
                     *self.branch.get_unchecked_mut(i) = br.last().unwrap().1;
                 }
+                br.push((*self.ends.get_unchecked(i), i));
             }
         }
         self.idx = 0;
@@ -143,13 +144,13 @@ where
         unsafe {
             length -= 1;
             self.idx = 0;
-            while length >= 196 {
-                let half = length / 2;
-                if *self.starts.get_unchecked(self.idx + half) <= value {
-                    self.idx += length - half;
-                }
-                length = half;
-            }
+//             while length >= 196 {
+//                 let half = length / 2;
+//                 if *self.starts.get_unchecked(self.idx + half) <= value {
+//                     self.idx += length - half;
+//                 }
+//                 length = half;
+//             }
             while length > 0 {
                 let half = length / 2;
                 if *self.starts.get_unchecked(self.idx + half) <= value {
@@ -162,6 +163,28 @@ where
             }
         }
     }
+
+//     pub fn upper_bound(&mut self, value: i32) {
+//         unsafe {
+//             let mut length = self.starts.len();
+//             self.idx = 0;
+//             while length > 3 {
+//                 let half = length / 2;
+//                 self.idx += ((*self.starts.get_unchecked(self.idx + half) <= value) as usize) * (length - half);
+//                 length = half;
+//             }
+//             while length > 0 {
+//                 length -= 1;
+//                 if *self.starts.get_unchecked(self.idx + length) <= value {
+//                     self.idx += length;
+//                     break;
+//                 }
+//             }
+//             if self.idx > 0 && (self.idx == self.starts.len() - 1 || *self.starts.get_unchecked(self.idx) > value) {
+//                 self.idx -= 1;
+//             }
+//         }
+//     }
     /// Finds all intervals that overlap with the given range.
     ///
     /// # Arguments

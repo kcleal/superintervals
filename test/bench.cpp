@@ -269,23 +269,8 @@ void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInte
     for (const auto& item : queries) {
         found += itv.countOverlaps(item.start, item.end - 1);
     }
-    std::cerr << uSec(t1) << "," << found << ",";  // count all overlapping
+    std::cerr << uSec(t1) << "," << found << "\n";  // count all overlapping
 
-    found = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        itv.findStabbed(item.start, a);
-        found += a.size();
-        a.clear();
-    }
-    std::cerr << uSec(t1) << "," << found << ",";  // find all stabbed
-
-    found = 0;
-    t1 = high_resolution_clock::now();
-    for (const auto& item : queries) {
-        found += itv.countStabbed(item.start);
-    }
-    std::cerr << uSec(t1) << "," << found << std::endl;  // count all stabbed
 }
 
 void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {

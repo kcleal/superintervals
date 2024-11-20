@@ -22,7 +22,7 @@
 #
 # For Coitrees, a benchmark program is available at:
 #     https://github.com/kcleal/superintervals/tree/main/test/3rd-party/coitrees/examples
-# This will need to be build before hand
+# !!! This will need to be build before hand
 
 # Running:
 # --------
@@ -84,18 +84,21 @@ prepare_and_run() {
 }
 
 # random regions from bedtools random, baseline
-prepare_and_run data/l1000_n1000.b.bed data/l1000_n1000.b.bed "rand-b" "rand-a"
+# prepare_and_run data/l1000_n1000.b.bed data/l1000_n1000.b.bed "rand-b" "rand-a"
 
 # chrM reads from DB53 (renamed as chr1)
 prepare_and_run data/DB53.chrM_reads_as_chr1.bed data/DB53.chrM_reads_as_chr1.bed "mito-b" "mito-a"
-prepare_and_run data/PAO33946.chrM_reads_as_chr1.bed data/PAO33946.chrM_reads_as_chr1.bed "mito-lr-b" "mito-lr-a"
+#prepare_and_run data/PAO33946.chrM_reads_as_chr1.bed data/PAO33946.chrM_reads_as_chr1.bed "mito-lr-b" "mito-lr-a"
 
 # RNA anno from cgranges releases page
 prepare_and_run data/ex-rna.bed data/ex-anno.bed "rna" "anno"
+prepare_and_run data/ex-anno.bed data/ex-rna.bed "anno" "rna"
 
 # genes vs reads
 prepare_and_run data/ucsc.hg19.genes.bed data/chr1.DB53.bed "genes" "DB53 reads"
+prepare_and_run data/chr1.DB53.bed data/ucsc.hg19.genes.bed "DB53 reads" "genes"
 
 # long reads vs short reads
 prepare_and_run data/PAO33946.chr1.bed data/chr1.DB53.bed "ONT reads" "DB53 reads"
+prepare_and_run  data/chr1.DB53.bed data/PAO33946.chr1.bed "DB53 reads" "ONT reads"
 

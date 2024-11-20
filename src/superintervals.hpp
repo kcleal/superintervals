@@ -209,15 +209,15 @@ class SuperIntervals {
     virtual inline void upperBound(const S value) noexcept {  // https://github.com/mh-dm/sb_lower_bound/blob/master/sbpm_lower_bound.h
         size_t length = starts.size() - 1;
         idx = 0;
-        constexpr int num_per_cache_line = 3 * hardware_constructive_interference_size;
-        while (length >= num_per_cache_line) {
-            size_t half = length / 2;
-//                __builtin_prefetch(&starts[idx + half / 2]);
-//            size_t first_half1 = idx + (length - half);
-//                __builtin_prefetch(&starts[first_half1 + half / 2]);
-            idx += (starts[idx + half] <= value) * (length - half);
-            length = half;
-        }
+//        constexpr int num_per_cache_line = 3 * hardware_constructive_interference_size;
+//        while (length >= num_per_cache_line) {
+//            size_t half = length / 2;
+////                __builtin_prefetch(&starts[idx + half / 2]);
+////            size_t first_half1 = idx + (length - half);
+////                __builtin_prefetch(&starts[first_half1 + half / 2]);
+//            idx += (starts[idx + half] <= value) * (length - half);
+//            length = half;
+//        }
 
         while (length > 0) {
             size_t half = length / 2;
@@ -622,81 +622,4 @@ private:
     int eytzinger(S* arr, size_t n) {
         return eytzinger_helper(arr, n, 0, 0);
     }
-};
-
-
-template<typename S, typename T>
-class SuperIntervalsDense : public SuperIntervals<S, T> {
-public:
-
-    void index() override {
-        if (this->starts.size() == 0) {
-            return;
-        }
-        if (this->starts.size() == 1) {
-            dense.resize(1, 0);
-        }
-        this->starts.shrink_to_fit();
-        this->ends.shrink_to_fit();
-        this->data.shrink_to_fit();
-        this->sortIntervals();
-
-        // Could probably use a queue here to make dense vector in O(n) time
-        min_value = this->starts.front();
-        max_value = *std::max_element(this->ends.begin(), this->ends.end());
-        S max_size = max_value - min_value;
-        dense.resize((size_t)max_size, INT_MAX);
-        size_t index, end_index;
-        for (int i = this->starts.size() - 1; i >= 0; --i) {
-            index = (size_t)((this->starts[i] - min_value));
-            end_index = (size_t)(this->ends[i] - min_value);
-            for (size_t j=index; j < end_index + 1; ++j) {
-                if (dense[j] == INT_MAX) {
-                    dense[j] = i;
-                }
-            }
-            ++end_index;
-            while (end_index < dense.size() && dense[end_index] == INT_MAX) {
-                dense[end_index] = i;
-                ++end_index;
-            }
-        }
-
-        this->branch.resize(this->starts.size(), SIZE_MAX);
-        std::vector<std::pair<S, size_t>> br;
-        br.reserve(1000);
-        br.emplace_back() = {this->ends[0], 0};
-        for (size_t i=1; i < this->ends.size(); ++i) {
-            while (!br.empty() && br.back().first < this->ends[i]) {
-                br.pop_back();
-            }
-            if (!br.empty()) {
-                this->branch[i] = br.back().second;
-            }
-            br.emplace_back() = {this->ends[i], i};
-        }
-        this->idx = 0;
-    }
-
-    inline void upperBound(const S x) noexcept override {
-        size_t i = 0;
-        if (min_value > x) {
-            this->idx = 0;
-            return;
-        } else if (x > max_value) {
-            this->idx = this->starts.size() - 1;
-            return;
-        }
-        size_t target_idx = (size_t)(x - min_value);
-
-        this->idx = (size_t)dense[target_idx];
-        if (this->idx > this->starts.size()) {
-            this->idx = 0;
-        }
-    }
-
-private:
-    std::vector<uint32_t> dense;
-
-    S min_value, max_value;
 };

@@ -74,7 +74,86 @@ cargo run --release --example bed-intersect-si a.bed b.bed
 
 ## Benchmark
 
-Update when issue #2 is resolved.
+Benchmark
+
+SuperIntervals (SI) was compared with:
+
+    Coitrees (Rust: https://github.com/dcjones/coitrees)
+    Implicit Interval Tree (C++: https://github.com/lh3/cgranges)
+    Interval Tree (C++: https://github.com/ekg/intervaltree)
+    Nested Containment List (C: https://github.com/pyranges/ncls/tree/master/ncls/src)
+
+Main results:
+
+- Finding interval intersections is roughly ~1.5-3x faster than the next best library (Coitrees for Rust, Implicit Interval Tree for C++), with some 
+exceptions. Coitrees-s was faster for one test (ONT reads, sorted DB53 reads).
+- For random intervals, the SIMD counting performance of coitrees and superintervals is quite similar.
+
+Datasets:
+
+    1. `rna / anno` RNA-seq reads and annotations from cgranges repository
+    2. `ONT reads` nanopore alignments from sample PAO33946 chr1, converted to bed format
+    3. `DB53 reads` paired-end reads from sample DB53, NCBI BioProject PRJNA417592, chr1, converted to bed format
+    4. `mito-b, mito-a` paired-end reads from sample DB53 chrM, converted to bed format (mito-b and mito-a are the same)
+    5. `genes` UCSC genes from hg19
+
+Test programs use internal timers and print data to stdout, measuring the index time, and time to find all intersections. Other steps such as file IO are ignored. Test programs also only assess chr1 bed records - other chromosomes are ignored. For 'chrM' records, the M was replaced with 1 using sed. Data were assessed in position sorted and random order. Datasets can be found on the Releases page, and the test/run_tools.sh script has instructions for how to repeat the benchmark.
+
+Timings were in microseconds using an i9-11900K, 64 GB, 2TB NVMe machine.
+## Finding interval intersections
+
+    Coitrees-s uses the SortedQuerent version of coitrees
+    SI = superintervals. Eytz refers to the eytzinger layout. -rs is the Rust implementation.
+
+### Intervals in sorted order
+
+|                       | Coitrees | Coitrees-s | SuperIntervals-rs | SuperIntervalsEytz-rs | ImplicitITree-C++ | IntervalTree-C++ | NCLS-C | SuperIntervals-C++ | SuperIntervalsEytz-C++ |
+| --------------------- | -------- | ---------- |-------------------| --------------------- | ----------------- | ---------------- | ------ | ------------------ | ---------------------- |
+| DB53 reads, ONT reads | 1668     | 3179       | **757**             | **757**                   | 3831              | 44404            | 10642  | **1315**               | 1358                   |
+| DB53 reads, genes     | 55       | 84         | **21**                | **21**                    | 122               | 109              | 291    | 42                 | **40**                     |
+| ONT reads, DB53 reads | 6504     | **3354**       | 3859              | 3854                  | 17949             | 12280            | 30772  | 5290               | **4462**                   |
+| anno, rna             | 50       | 35         | **18**                | **18**                    | 127               | 90               | 208    | 29                 | **22**                     |
+| genes, DB53 reads     | 1171     | 1018       | 301               | **296**                   | 3129              | 1315             | 1780   | 442                | **323**                    |
+| mito-b, mito-a        | 34769    | 34594      | 16971             | **16952**                 | 93900             | 107660           | 251707 | 33177              | **32985**                  |
+| rna, anno             | 31       | 23         | 21                | **20**                    | 70                | 55               | 233    | 28                 | **27**                     |
+
+### Intervals in random order
+
+|                       | Coitrees | Coitrees-s | SuperIntervals-rs | SuperIntervalsEytz-rs | ImplicitITree-C++ | IntervalTree-C++ | NCLS-C | SuperIntervals-C++ | SuperIntervalsEytz-C++ |
+| --------------------- | -------- | ---------- | ----------------- | --------------------- | ----------------- | ---------------- | ------ | ------------------ | ---------------------- |
+| DB53 reads, ONT reads | 2943     | 4663       | 1356              | **1355**                  | 6505              | 46743            | 11947  | 2491               | **2169**                   |
+| DB53 reads, genes     | 78       | 130        | 27                | **26**                    | 170               | 125              | 305    | 58                 | **51**                     |
+| ONT reads, DB53 reads | 16650    | 18931      | 16116             | **16037**                 | 38677             | 27832            | 53452  | **23003**              | 23232                  |
+| anno, rna             | 89       | 105        | **54**                | **54**                    | 188               | 143              | 294    | **58**                 | 60                     |
+| genes, DB53 reads     | 2222     | 2424       | 1693              | **1684**                  | 4490              | 2701             | 3605   | **1251**               | 1749                   |
+| mito-b, mito-a        | 38030    | 86309      | **18326**             | 18368                 | 125336            | 118321           | 256293 | 42195              | **41695**                  |
+| rna, anno             | 53       | 73         | **45**                | **45**                    | 137               | 83               | 311    | **52**                 | **52**                     |
+
+## Counting interval intersections
+
+### Intervals in sorted order
+
+|                       | Coitrees | SuperIntervals-rs | SuperIntervalsEytz-rs | SuperIntervals-C++ | SuperIntervalsEytz-C++ |
+| --------------------- | -------- | ----------------- | --------------------- | ------------------ | ---------------------- |
+| DB53 reads, ONT reads | 551      | 370               | 371                   | **241**                | 263                    |
+| DB53 reads, genes     | 28       | 12                | 12                    | 8                  | **7**                      |
+| ONT reads, DB53 reads | 2478     | 1909              | 1890                  | 2209               | **1312**                   |
+| anno, rna             | 26       | 14                | 14                    | 22                 | **11**                     |
+| genes, DB53 reads     | 747      | 321               | 336                   | 446                | **290**                    |
+| mito-b, mito-a        | 6894     | 6727              | 6746                  | 3088               | **2966**                   |
+| rna, anno             | **9**        | 13                | 13                    | 12                 | 10                     |
+
+### Intervals in random order
+
+|                       | Coitrees | SuperIntervals-rs | SuperIntervalsEytz-rs | SuperIntervals-C++ | SuperIntervalsEytz-C++ |
+| --------------------- | -------- | ----------------- | --------------------- | ------------------ | ---------------------- |
+| DB53 reads, ONT reads | 1988     | 972               | 969                   | 1016               | **778**                    |
+| DB53 reads, genes     | 53       | 20                | 20                    | 16                 | **13**                     |
+| ONT reads, DB53 reads | 6692     | 8864              | 8733                  | **8182**               | 9523                   |
+| anno, rna             | 52       | 49                | 48                    | **47**                 | 50                     |
+| genes, DB53 reads     | 1503     | 1628              | 1592                  | **1120**               | 1623                   |
+| mito-b, mito-a        | 14354    | 7579              | 7600                  | 4442               | **4383**                   |
+| rna, anno             | 22       | 30                | 29                    | **25**                 | **25**                     |
 
 ## Python
 
@@ -189,7 +268,7 @@ fn main() {
 }
 ```
 There is also `SuperIntervalsEytz` implementation. `SuperIntervalsEytz` 
-uses an Eytzinger memory layout that can sometimes offer faster query times at the cost of higher memory
+uses an Eytzinger memory layout that can sometimes offer faster [plot_results.py](../../Documents/data/superintervals_dev/plot_results.py)query times at the cost of higher memory
 usage and slower indexing time.
 
 ## Acknowledgements
@@ -200,3 +279,4 @@ Schmidt 2009 "Interval Stabbing Problems in Small Integer Ranges". However, the 
   1. An implicit memory layout
   1. General purpose implementation (not just small integer ranges)
   1. SIMD counting algorithm 
+- The Eytzinger layout was adapted from Sergey Slotin, Algorithmica
