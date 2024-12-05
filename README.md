@@ -87,7 +87,7 @@ Main results:
 
 - Finding interval intersections is roughly ~1.5-3x faster than the next best library (Coitrees for Rust, Implicit Interval Tree for C++), with some 
 exceptions. Coitrees-s was faster for one test (ONT reads, sorted DB53 reads).
-- For random intervals, the SIMD counting performance of coitrees and superintervals is quite similar.
+- The SIMD counting performance of coitrees and superintervals is similar.
 
 Datasets:
 
@@ -268,7 +268,7 @@ fn main() {
 }
 ```
 There is also `SuperIntervalsEytz` implementation. `SuperIntervalsEytz` 
-uses an Eytzinger memory layout that can sometimes offer faster [plot_results.py](../../Documents/data/superintervals_dev/plot_results.py)query times at the cost of higher memory
+uses an Eytzinger memory layout that can sometimes offer faster query times at the cost of higher memory
 usage and slower indexing time.
 
 ## Acknowledgements
