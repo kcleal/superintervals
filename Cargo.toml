@@ -1,7 +1,7 @@
 [package]
 name = "superintervals"
 description = "Interval overlap library"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Kez Cleal. <clealk@cardiff.ac.uk>"]
 edition = "2021"
 repository = "https://github.com/kcleal/superintervals"

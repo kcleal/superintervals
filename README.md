@@ -91,11 +91,11 @@ exceptions. Coitrees-s was faster for one test (ONT reads, sorted DB53 reads).
 
 Datasets:
 
-    1. `rna / anno` RNA-seq reads and annotations from cgranges repository
-    2. `ONT reads` nanopore alignments from sample PAO33946 chr1, converted to bed format
-    3. `DB53 reads` paired-end reads from sample DB53, NCBI BioProject PRJNA417592, chr1, converted to bed format
-    4. `mito-b, mito-a` paired-end reads from sample DB53 chrM, converted to bed format (mito-b and mito-a are the same)
-    5. `genes` UCSC genes from hg19
+- `rna / anno` RNA-seq reads and annotations from cgranges repository
+- `ONT reads` nanopore alignments from sample PAO33946 chr1, converted to bed format
+- `DB53 reads` paired-end reads from sample DB53, NCBI BioProject PRJNA417592, chr1, converted to bed format
+- `mito-b, mito-a` paired-end reads from sample DB53 chrM, converted to bed format (mito-b and mito-a are the same)
+- `genes` UCSC genes from hg19
 
 Test programs use internal timers and print data to stdout, measuring the index time, and time to find all intersections. Other steps such as file IO are ignored. Test programs also only assess chr1 bed records - other chromosomes are ignored. For 'chrM' records, the M was replaced with 1 using sed. Data were assessed in position sorted and random order. Datasets can be found on the Releases page, and the test/run_tools.sh script has instructions for how to repeat the benchmark.
 

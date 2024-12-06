@@ -286,7 +286,7 @@ class SuperIntervals {
         __m256i start_vec = _mm256_set1_epi32(start);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
         constexpr size_t block = simd_width * 4;
-#elif defined(__ARM_NEON__)
+#elif defined(__ARM_NEON__) || defined(__aarch64__)
         int32x4_t start_vec = vdupq_n_s32(start);
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
@@ -315,7 +315,7 @@ class SuperIntervals {
                         break;
                     }
                 }
-#elif defined(__ARM_NEON__)
+#elif defined(__ARM_NEON__) || defined(__aarch64__)
                 while (i > block) {
                     size_t count = 0;
                     uint32x4_t mask, bool_mask;
@@ -423,7 +423,7 @@ class SuperIntervals {
         __m256i start_vec = _mm256_set1_epi32(point);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
         constexpr size_t block = simd_width * 4;
-#elif defined(__ARM_NEON__)
+#elif defined(__ARM_NEON__) || defined(__aarch64__)
         int32x4_t start_vec = vdupq_n_s32(point);
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
@@ -452,7 +452,7 @@ class SuperIntervals {
                         break;
                     }
                 }
-#elif defined(__ARM_NEON__)
+#elif defined(__ARM_NEON__) || defined(__aarch64__)
                 while (i > block) {
                     size_t count = 0;
                     uint32x4_t bool_mask;
