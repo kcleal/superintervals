@@ -6,10 +6,14 @@
 #include <climits>
 #include <iostream>
 #include <limits>
-#if defined(__AVX2__)
-    #include <immintrin.h>
-#elif defined(__ARM_NEON__) || defined(__aarch64__)
-    #include <arm_neon.h>
+#ifndef SI_NOSIMD
+    #if defined(__AVX2__)
+        #include <immintrin.h>
+    #elif defined(__ARM_NEON__) || defined(__aarch64__)
+        #include <arm_neon.h>
+    #else
+        #define SI_NOSIMD
+    #endif
 #endif
 
 /**
@@ -282,7 +286,9 @@ class SuperIntervals {
         size_t found = 0;
         size_t i = idx;
 
-#ifdef __AVX2__
+#ifdef SI_NOSIMD
+        constexpr size_t block = 16;
+#elif defined(__AVX2__)
         __m256i start_vec = _mm256_set1_epi32(start);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
         constexpr size_t block = simd_width * 4;
@@ -291,16 +297,26 @@ class SuperIntervals {
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
         constexpr size_t block = simd_width * 4;
-#else
-        constexpr size_t block = 16;
 #endif
 
         while (i > 0) {
             if (start <= ends[i]) {
                 ++found;
                 --i;
+#ifdef SI_NOSIMD
+            while (i > block) {  // Rely on compiler auto vectorize
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; --j) {
+                        count += (start <= ends[j]) ? 1 : 0;
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block && start > ends[i + 1]) {  // check for a branch
+                        break;
+                    }
+                }
 
-#ifdef __AVX2__
+#elif defined(__AVX2__)
                 while (i > block) {
                     size_t count = 0;
                     for (size_t j = i; j > i - block; j -= simd_width) {
@@ -329,19 +345,6 @@ class SuperIntervals {
                     i -= block;
 //                    if (count < block && vgetq_lane_u32(mask, 0) == 0) {  // check for overlap again, before checking for branch?
                     if (count < block) {  // check for overlap again, before checking for branch?
-                        break;
-                    }
-                }
-#else  // Rely on compiler auto vectorize
-                while (i > block) {
-                    size_t count = 0;
-                    for (size_t j = i; j > i - block; --j) {
-                        count += (start <= ends[j]) ? 1 : 0;
-                    }
-                    found += count;
-                    i -= block;
-                    if (count < block && start > ends[i + 1]) {  // check for a branch
-//                    if (count < block) {  // check for a branch
                         break;
                     }
                 }
@@ -419,7 +422,9 @@ class SuperIntervals {
         size_t found = 0;
         size_t i = idx;
 
-#ifdef __AVX2__
+#ifdef SI_NOSIMD
+        constexpr size_t block = 16;
+#elif defined(__AVX2__)
         __m256i start_vec = _mm256_set1_epi32(point);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
         constexpr size_t block = simd_width * 4;
@@ -428,8 +433,6 @@ class SuperIntervals {
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
         constexpr size_t block = simd_width * 4;
-#else
-        constexpr size_t block = 16;
 #endif
 
         while (i > 0) {
@@ -437,7 +440,19 @@ class SuperIntervals {
                 ++found;
                 --i;
 
-#ifdef __AVX2__
+#ifdef SI_NOSIMD
+                while (i > block) {
+                    size_t count = 0;
+                    for (size_t j = i; j > i - block; --j) {
+                        count += (point <= ends[j]) ? 1 : 0;
+                    }
+                    found += count;
+                    i -= block;
+                    if (count < block) {  // go check for a branch
+                        break;
+                    }
+                }
+#elif defined(__AVX2__)
                 while (i > block) {
                     size_t count = 0;
                     for (size_t j = i; j > i - block; j -= simd_width) {
@@ -461,18 +476,6 @@ class SuperIntervals {
                         uint32x4_t mask = vcleq_s32(start_vec, ends_vec);
                         bool_mask = vandq_u32(mask, ones); // Convert -1 to 1 for true elements
                         count += vaddvq_u32(bool_mask);
-                    }
-                    found += count;
-                    i -= block;
-                    if (count < block) {  // go check for a branch
-                        break;
-                    }
-                }
-#else
-                while (i > block) {
-                    size_t count = 0;
-                    for (size_t j = i; j > i - block; --j) {
-                        count += (point <= ends[j]) ? 1 : 0;
                     }
                     found += count;
                     i -= block;

@@ -4,9 +4,10 @@
 
 use std::cmp::Ordering;
 use std::cmp::{max, min};
+use serde::{Serialize, Deserialize};
 
 /// Represents an interval with associated data.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Interval<T> {
     start: i32,
     end: i32,
@@ -22,7 +23,9 @@ pub struct Interval<T> {
 ///
 /// Intervals are considered end-inclusive
 /// The index() function must be called before any queries. If more intervals are added, call index() again.
-pub struct SuperIntervals<T> {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuperIntervals<T>
+{
     starts: Vec<i32>,
     ends: Vec<i32>,
     branch: Vec<usize>,
@@ -32,9 +35,8 @@ pub struct SuperIntervals<T> {
     end_sorted: bool,
 }
 
-impl<T> SuperIntervals<T>
-where
-    T: Clone,
+
+impl<T: Clone> SuperIntervals<T>
 {
     pub fn new() -> Self {
         SuperIntervals {
@@ -164,27 +166,6 @@ where
         }
     }
 
-//     pub fn upper_bound(&mut self, value: i32) {
-//         unsafe {
-//             let mut length = self.starts.len();
-//             self.idx = 0;
-//             while length > 3 {
-//                 let half = length / 2;
-//                 self.idx += ((*self.starts.get_unchecked(self.idx + half) <= value) as usize) * (length - half);
-//                 length = half;
-//             }
-//             while length > 0 {
-//                 length -= 1;
-//                 if *self.starts.get_unchecked(self.idx + length) <= value {
-//                     self.idx += length;
-//                     break;
-//                 }
-//             }
-//             if self.idx > 0 && (self.idx == self.starts.len() - 1 || *self.starts.get_unchecked(self.idx) > value) {
-//                 self.idx -= 1;
-//             }
-//         }
-//     }
     /// Finds all intervals that overlap with the given range.
     ///
     /// # Arguments
@@ -406,7 +387,9 @@ where
 
 
 /// A variant of `SuperIntervals` that uses the Eytzinger layout for faster searching.
-pub struct SuperIntervalsEytz<T> {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuperIntervalsEytz<T>
+{
     inner: SuperIntervals<T>,
     eytz: Vec<i32>,
     eytz_index: Vec<usize>,
@@ -421,9 +404,7 @@ pub fn ffs(x: u32) -> u32 {
     }
 }
 
-impl<T> SuperIntervalsEytz<T>
-where
-    T: Clone,
+impl<T: Clone> SuperIntervalsEytz<T>
 {
     pub fn new() -> Self {
         SuperIntervalsEytz {

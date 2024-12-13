@@ -11,6 +11,7 @@ extern crate libc;
 use superintervals::SuperIntervals;
 use superintervals::SuperIntervalsEytz;
 
+use bincode;
 
 // Define a trait that all SuperIntervals subclasses implement
 pub trait IntervalCollection<T: Clone> {
@@ -136,6 +137,10 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     eprint!("SuperIntervals-rs,");
     let mut trees: FnvHashMap<String, SuperIntervals<()>> = read_bed_file::<SuperIntervals<()>>(filename_a)?;
     let intervals: &mut SuperIntervals<()> = trees.get_mut("chr1").ok_or("Chromosome intervals not found")?;
+
+    // Verify the deserialized data
+    let serialized_size = bincode::serialized_size(&intervals).unwrap();
+    assert_ne!(serialized_size, 0);
 
     // Find overlaps (collecting results)
     let mut total_found = 0;
