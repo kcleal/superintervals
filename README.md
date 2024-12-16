@@ -162,7 +162,7 @@ Install using `pip install superintervals`
 ```
 from superintervals import IntervalSet
 
-iset = IntervalSet()
+iset = IntervalSet(with_data=True)
 
 # Add interval start, end, identifier. Integer values are supported
 iset.add(10, 20, 0)

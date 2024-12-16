@@ -42,10 +42,10 @@ cdef extern from "superintervals.hpp":
 cdef class IntervalSet:
     cdef SuperIntervals* thisptr
     cdef vector[int] found
-    cdef bint with_data
     cdef list data
     cdef int n_intervals
     cpdef add(self, int start, int end, value=*)
+    cpdef add_int_value(self, int start, int end, int value)
     cpdef index(self)
     cpdef set_search_interval(self, int start, int end)
     cpdef clear(self)
