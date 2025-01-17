@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <vector>
 #include <climits>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #ifndef SI_NOSIMD
@@ -54,7 +55,7 @@ class SuperIntervals {
         , it_high(0)
         {}
 
-    ~SuperIntervals() = default;
+    virtual ~SuperIntervals() = default;
 
     /**
      * @brief Clears all intervals and resets the data structure
