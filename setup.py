@@ -6,7 +6,7 @@ ext_modules = [
               ["src/superintervals/intervalset.pyx"],
               include_dirs=["src"],
               language="c++",
-              extra_compile_args=["-std=c++17", "-march=native"])
+              extra_compile_args=["-std=c++17"])
 ]
 
 print('PAKCAGES', find_packages(where='src'))  # Add this line for debugging

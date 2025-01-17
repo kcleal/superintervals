@@ -27,7 +27,10 @@ namespace Bench {
 
 size_t found, index;
 high_resolution_clock::time_point t0, t1;
-std::vector<size_t> a, b;
+
+// Defines what is stored alongside a test interval
+typedef size_t DType;
+std::vector<DType> a, b;
 
 
 struct BedInterval {
@@ -142,14 +145,15 @@ void run_IITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& q
     std::cerr << uSec(t0) << ",";
 
     found = 0;
+    std::vector<size_t> c;
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
-        tree.overlap(item.start, item.end, b);
+        tree.overlap(item.start, item.end, c);
         // Only returns indexes need to enumerate actual data for a fair test
 //        for (const auto &v: b) {
 //            index = tree.data(v); // make sure this step is not elided
 //        }
-        found += b.size();
+        found += c.size();
     }
     std::cout << uSec(t1) << "," << found << std::endl;
 }
@@ -241,7 +245,7 @@ void run_NCLS(std::vector<BedInterval>& intervals, std::vector<BedInterval>& que
 }
 
 void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries,
-                SuperIntervals<int, size_t> &itv, std::string name
+                SuperIntervals<int, DType> &itv, std::string name
                 ) {
     std::cout << name << ",";
 
@@ -249,6 +253,7 @@ void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInte
     t0 = high_resolution_clock::now();
     for (const auto& item : intervals) {
         itv.add(item.start, item.end - 1, index);
+        //itv.add(item.start, item.end - 1, {item.start, item.end});
         index += 1;
     }
     itv.index();
@@ -286,10 +291,12 @@ void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& qu
 
     run_NCLS(intervals, queries);
 
-    auto itv = SuperIntervals<int, size_t>();
+    //auto itv = SuperIntervals<int, size_t>();
+    auto itv = SuperIntervals<int, DType>();
     run_SuperIntervals(intervals, queries, itv, "SuperIntervals-C++");
 
-    auto itv2 = SuperIntervalsEytz<int, size_t>();
+    //auto itv2 = SuperIntervalsEytz<int, size_t>();
+    auto itv2 = SuperIntervalsEytz<int, DType>();
     run_SuperIntervals(intervals, queries, itv2, "SuperIntervalsEytz-C++");
 
 //    auto itv3 = SuperIntervalsDense<int, size_t>();
