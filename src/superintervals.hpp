@@ -216,7 +216,7 @@ class SuperIntervals {
             idx += (starts[idx + half] <= value) * (length - half);
             length = half;
         }
-        if (idx > 0 && (starts[idx] > value)) {
+        if (idx > 0 && starts[idx] > value) {
             --idx;
         }
     }
@@ -545,8 +545,6 @@ class SuperIntervals {
 template<typename S, typename T>
 class SuperIntervalsEytz : public SuperIntervals<S, T> {
 public:
-
-//    alignas(alignof(std::vector<S>)) std::vector<S> extent;
 
     void index() override {
         if (this->starts.size() == 0) {

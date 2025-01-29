@@ -81,7 +81,7 @@ cdef class IntervalSet:
         if len(self.data) == 0:
             return itv.start, itv.end, itv.data
         else:
-            return itv.start, itv.end, self.data[index]
+            return itv.start, itv.end, self.data[itv.data]
 
     cdef void interval_at(self, int index, SuperIntervals.Interval &itv):
         self.thisptr.at(index, itv)
@@ -106,6 +106,7 @@ cdef class IntervalSet:
         """
         self.thisptr.clear()
         self.n_intervals = 0
+        self.data = []
 
     cpdef reserve(self, size_t n):
         """

@@ -162,12 +162,16 @@ Install using `pip install superintervals`
 ```
 from superintervals import IntervalSet
 
-iset = IntervalSet(with_data=True)
+iset = IntervalSet()
 
-# Add interval start, end, identifier. Integer values are supported
+# Add interval start, end, value
 iset.add(10, 20, 0)
 iset.add(19, 18, 1)
-iset.add(8, 11, 2)
+iset.add(8, 11, "hello")
+
+# If you only need integers as values use the add_int_value method instead e.g:
+# iset.add_int_value(10, 20, 1)
+# Note, mixing add and add_int_value is not allowed (just use one or the other)
 
 # Index method must be called before queries
 iset.index()
@@ -179,7 +183,7 @@ iset.count_overlaps(8, 20)
 # >>> 3
 
 iset.find_overlaps(8, 20)
-# >>> [1, 0, 2]
+# >>> [1, 0, "hello"]
 
 iset.set_search_interval(8, 20)
 for itv in iset:
@@ -187,8 +191,11 @@ for itv in iset:
 
 # >>> (19, 18, 1) 
 # >>> (10, 20, 0) 
-# >>> (8, 11, 2)
+# >>> (8, 11, "hello")
 
+# Print interval at index
+iset.at(0)
+# >>> (8, 11, "hello")
 ```
 
 ## Cpp

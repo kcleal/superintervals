@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "superintervals"
-version = "0.2.8"
+version = "0.2.9"
 description = "Rapid interval intersections"
 dependencies = ['Cython']
 authors = [{name = "Kez Cleal", email = "clealk@cardiff.ac.uk"}]
