@@ -64,6 +64,28 @@ cdef class IntervalSet:
                 raise ValueError('Value data list != n_intervals. Use only add or add_int_value functions, not both')
         self.thisptr.index()
 
+    cpdef at(self, int index):
+        """
+        Fetches the interval and data at the given index. Negative indexing is not supported.
+        Args:
+            index (int): The index of a stored interval.
+        Raises:
+            IndexError: If the index is out of range.
+        Returns:
+            tuple: start, end, data
+        """
+        if self.size() == 0 or index < 0 or index > self.size():
+            return IndexError('Index out of range')
+        cdef SuperIntervals.Interval itv
+        self.thisptr.at(index, itv)
+        if len(self.data) == 0:
+            return itv.start, itv.end, itv.data
+        else:
+            return itv.start, itv.end, self.data[index]
+
+    cdef void interval_at(self, int index, SuperIntervals.Interval &itv):
+        self.thisptr.at(index, itv)
+
     cpdef set_search_interval(self, int start, int end):
         """
         Define a search interval for querying overlaps. This is only needed if using the IntervalSet as an iterator.

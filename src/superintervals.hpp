@@ -60,7 +60,7 @@ class SuperIntervals {
     /**
      * @brief Clears all intervals and resets the data structure
      */
-    void clear() {
+    void clear() noexcept {
         data.clear(); starts.clear(); ends.clear(); branch.clear(); idx = 0;
     }
 
@@ -108,13 +108,10 @@ class SuperIntervals {
         if (starts.size() == 0) {
             return;
         }
-        starts.shrink_to_fit();
-        ends.shrink_to_fit();
-        data.shrink_to_fit();
         sortIntervals();
         branch.resize(starts.size(), SIZE_MAX);
         std::vector<std::pair<S, size_t>> br;
-        br.reserve(1000);
+        br.reserve((starts.size() / 10) + 1);
         br.emplace_back() = {ends[0], 0};
         for (size_t i=1; i < ends.size(); ++i) {
             while (!br.empty() && br.back().first < ends[i]) {
@@ -133,7 +130,7 @@ class SuperIntervals {
      * @param index The index of the interval to retrieve
      * @return The Interval at the specified index
      */
-    Interval at(size_t index) {
+    const Interval& at(size_t index) const {
         return Interval(starts[index], ends[index], data[index]);
     }
 
@@ -212,24 +209,14 @@ class SuperIntervals {
     }
 
     virtual inline void upperBound(const S value) noexcept {  // https://github.com/mh-dm/sb_lower_bound/blob/master/sbpm_lower_bound.h
-        size_t length = starts.size() - 1;
+        size_t length = starts.size();
         idx = 0;
-//        constexpr int num_per_cache_line = 3 * hardware_constructive_interference_size;
-//        while (length >= num_per_cache_line) {
-//            size_t half = length / 2;
-////                __builtin_prefetch(&starts[idx + half / 2]);
-////            size_t first_half1 = idx + (length - half);
-////                __builtin_prefetch(&starts[first_half1 + half / 2]);
-//            idx += (starts[idx + half] <= value) * (length - half);
-//            length = half;
-//        }
-
-        while (length > 0) {
+        while (length > 1) {
             size_t half = length / 2;
             idx += (starts[idx + half] <= value) * (length - half);
             length = half;
         }
-        if (idx > 0 && (idx == length || starts[idx] > value)) {
+        if (idx > 0 && (starts[idx] > value)) {
             --idx;
         }
     }

@@ -117,12 +117,9 @@ impl<T: Clone> SuperIntervals<T>
         if self.starts.is_empty() {
             return;
         }
-        self.starts.shrink_to_fit();
-        self.ends.shrink_to_fit();
-        self.data.shrink_to_fit();
         self.sort_intervals();
         self.branch.resize(self.starts.len(), usize::MAX);
-        let mut br: Vec<(i32, usize)> = Vec::with_capacity(1000);
+        let mut br: Vec<(i32, usize)> = Vec::with_capacity((self.starts.len() / 10) + 1);
         unsafe {
             br.push((*self.ends.get_unchecked(0), 0));
             for i in 1..self.ends.len() {
@@ -140,27 +137,16 @@ impl<T: Clone> SuperIntervals<T>
 
     pub fn upper_bound(&mut self, value: i32) {
         let mut length = self.starts.len();
-        if length == 0 {
-            return;
-        }
         unsafe {
-            length -= 1;
             self.idx = 0;
-//             while length >= 196 {
-//                 let half = length / 2;
-//                 if *self.starts.get_unchecked(self.idx + half) <= value {
-//                     self.idx += length - half;
-//                 }
-//                 length = half;
-//             }
-            while length > 0 {
+            while length > 1 {
                 let half = length / 2;
                 if *self.starts.get_unchecked(self.idx + half) <= value {
                     self.idx += length - half;
                 }
                 length = half;
             }
-            if self.idx > 0 && (self.idx == self.starts.len() || *self.starts.get_unchecked(self.idx) > value) {
+            if self.idx > 0 && (*self.starts.get_unchecked(self.idx) > value) {
                 self.idx -= 1;
             }
         }
