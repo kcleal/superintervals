@@ -38,6 +38,8 @@ class SuperIntervals {
     struct Interval {
         S start, end;
         T data;
+        Interval() = default;
+        Interval(S s, S e, T d) : start(s), end(e), data(d) {}
     };
 
     alignas(alignof(std::vector<S>)) std::vector<S> starts;
@@ -131,7 +133,7 @@ class SuperIntervals {
      * @return The Interval at the specified index
      */
     const Interval& at(size_t index) const {
-        return Interval(starts[index], ends[index], data[index]);
+        return Interval{starts[index], ends[index], data[index]};
     }
 
     void at(size_t index, Interval& itv) {
@@ -230,7 +232,6 @@ class SuperIntervals {
         while (i > 0) {
             if (start <= ends[i]) {
                 return true;
-                --i;
             } else {
                 if (branch[i] >= i) {
                     break;
