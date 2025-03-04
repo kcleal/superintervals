@@ -27,7 +27,7 @@ cdef extern from "superintervals.hpp":
         bint anyOverlaps(int start, int end)
         size_t countOverlaps(int start, int end)
         void findOverlaps(int start, int end, vector[int]& found)
-
+        void findIndexes(int start, int end, vector[size_t]& found_indexes)
         cppclass const_iterator
         cppclass Iterator:
             Iterator(const SuperIntervals * list, size_t index)
@@ -47,6 +47,7 @@ cdef extern from "superintervals.hpp":
 cdef class IntervalSet:
     cdef SuperIntervals* thisptr
     cdef vector[int] found
+    cdef vector[size_t] found_indexes
     cdef list data
     cdef int n_intervals
     cpdef add(self, int start, int end, value=*)
@@ -61,3 +62,4 @@ cdef class IntervalSet:
     cpdef any_overlaps(self, int start, int end)
     cpdef count_overlaps(self, int start, int end)
     cpdef find_overlaps(self, int start, int end)
+    cpdef find_indexes(self, int start, int end)

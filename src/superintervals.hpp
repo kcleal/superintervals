@@ -266,6 +266,74 @@ class SuperIntervals {
         }
     }
 
+    static constexpr auto findValues = &SuperIntervals::findOverlaps;
+
+    void findIndexes(const S start, const S end, std::vector<size_t>& found) {
+        if (starts.empty()) {
+            return;
+        }
+        upperBound(end);
+        size_t i = idx;
+        while (i > 0) {
+            if (start <= ends[i]) {
+                found.push_back(i);
+                --i;
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
+            found.push_back(0);
+        }
+    }
+
+    void findKeys(const S start, const S end, std::vector<std::pair<S, S>>& found) {
+        if (starts.empty()) {
+            return;
+        }
+        upperBound(end);
+        size_t i = idx;
+        while (i > 0) {
+            if (start <= ends[i]) {
+                found.push_back({starts[i], ends[i]});
+                --i;
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
+            found.push_back({starts[0], ends[0]});
+        }
+    }
+
+    void findItems(const S start, const S end, std::vector<Interval>& found) {
+        if (starts.empty()) {
+            return;
+        }
+        upperBound(end);
+        size_t i = idx;
+        while (i > 0) {
+            if (start <= ends[i]) {
+                found.emplace_back() = {starts[i], ends[i], data[i]};
+                --i;
+            } else {
+                if (branch[i] >= i) {
+                    break;
+                }
+                i = branch[i];
+            }
+        }
+        if (i==0 && start <= ends[0] && starts[0] <= end) {
+            found.emplace_back() = {starts[0], ends[0], data[0]};
+        }
+    }
+
     size_t countOverlaps(const S start, const S end) noexcept {
         if (starts.empty()) {
             return 0;

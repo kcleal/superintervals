@@ -171,6 +171,21 @@ cdef class IntervalSet:
             return [self.data[i] for i in self.found]
         return self.found
 
+    cpdef find_indexes(self, int start, int end):
+        """
+        Find all interval indexes that overlap with a given range. Use 'at()' on an indexes to get interval data
+
+        Args:
+            start (int): The start of the range (inclusive).
+            end (int): The end of the range (exclusive).
+
+        Returns:
+            list: Returns a list of indices of the overlapping intervals.
+        """
+        self.found_indexes.clear()
+        self.thisptr.findIndexes(start, end, self.found_indexes)
+        return self.found_indexes
+
     def __iter__(self):
         return IteratorWrapper(self)
 

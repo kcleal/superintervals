@@ -13,6 +13,7 @@ print('PAKCAGES', find_packages(where='src'))  # Add this line for debugging
 
 setup(
     name='superintervals',
+    version='0.2.10',
     description="Rapid interval intersections",
     author="Kez Cleal",
     author_email="clealk@cardiff.ac.uk",

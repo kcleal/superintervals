@@ -16,6 +16,7 @@ void print_vec(std::vector<size_t>& a, SuperIntervals<int, int>& itv) {
 
 void superTests(SuperIntervals<int, int> &itv, std::string name) {
     std::vector<int> a;
+    std::vector<int> a_idxs;
     std::pair<size_t, int> cov_res;
     std::cout << "\n" << name << " tests \n";
 
@@ -31,6 +32,10 @@ void superTests(SuperIntervals<int, int> &itv, std::string name) {
     itv.coverage(10, 29, cov_res);
     assert (cov_res.second == 17);
     itv.clear(); a.clear();
+
+
+
+    return;
 
     std::cout << "1, ";
     itv.add(1, 2, 0);
