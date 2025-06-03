@@ -33,10 +33,6 @@ void superTests(SuperIntervals<int, int> &itv, std::string name) {
     assert (cov_res.second == 17);
     itv.clear(); a.clear();
 
-
-
-    return;
-
     std::cout << "1, ";
     itv.add(1, 2, 0);
     itv.add(3, 8, -1);

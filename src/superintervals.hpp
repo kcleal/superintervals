@@ -564,9 +564,7 @@ class SuperIntervals {
         size_t range_size = end_i - start_i;
         tmp.resize(range_size);
         for (size_t i = 0; i < range_size; ++i) {
-            tmp[i].start = starts[start_i + i];
-            tmp[i].end = ends[start_i + i];
-            tmp[i].data = data[start_i + i];
+            tmp[i] = Interval(starts[start_i + i], ends[start_i + i], data[start_i + i]);
         }
         std::sort(tmp.begin(), tmp.end(), compare);
         for (size_t i = 0; i < range_size; ++i) {
@@ -601,13 +599,6 @@ class SuperIntervals {
             endSorted = true;
         }
     }
-
-#ifdef __cpp_lib_hardware_interference_size
-    static constexpr std::size_t hardware_constructive_interference_size = std::hardware_constructive_interference_size;  // Corresponds to cache line size
-#else
-    static constexpr std::size_t hardware_constructive_interference_size = 64;
-#endif
-
 };
 
 
