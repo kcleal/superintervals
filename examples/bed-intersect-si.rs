@@ -8,43 +8,43 @@ use fnv::FnvHashMap;
 use clap::Parser;
 extern crate libc;
 
-use superintervals::SuperIntervals;
-use superintervals::SuperIntervalsEytz;
+use superintervals::IntervalMap;
+// use IntervalMap::IntervalMapEytz;
 
 use bincode;
 
-// Define a trait that all SuperIntervals subclasses implement
-pub trait IntervalCollection<T: Clone> {
-    fn new() -> Self;
-    fn add(&mut self, start: i32, end: i32, value: T);
-    fn index(&mut self);
-}
+// Define a trait that all IntervalMap subclasses implement
+// pub trait IntervalCollection<T: Clone> {
+//     fn new() -> Self;
+//     fn add(&mut self, start: i32, end: i32, value: T);
+//     fn index(&mut self);
+// }
+//
+// // Implement the trait for IntervalMap
+// impl<T: Clone> IntervalCollection<T> for IntervalMap<T> {
+//     fn new() -> Self {
+//         IntervalMap::new()
+//     }
+//     fn add(&mut self, start: i32, end: i32, value: T) {
+//         self.add(start, end, value);
+//     }
+//     fn index(&mut self) {
+//         self.index();
+//     }
+// }
 
-// Implement the trait for SuperIntervals
-impl<T: Clone> IntervalCollection<T> for SuperIntervals<T> {
-    fn new() -> Self {
-        SuperIntervals::new()
-    }
-    fn add(&mut self, start: i32, end: i32, value: T) {
-        self.add(start, end, value);
-    }
-    fn index(&mut self) {
-        self.index();
-    }
-}
-
-// Implement the trait for SuperIntervalsEytz
-impl<T: Clone> IntervalCollection<T> for SuperIntervalsEytz<T> {
-    fn new() -> Self {
-        SuperIntervalsEytz::new()
-    }
-    fn add(&mut self, start: i32, end: i32, value: T) {
-        self.add(start, end, value);
-    }
-    fn index(&mut self) {
-        self.index();
-    }
-}
+// Implement the trait for IntervalMapEytz
+// impl<T: Clone> IntervalCollection<T> for IntervalMapEytz<T> {
+//     fn new() -> Self {
+//         IntervalMapEytz::new()
+//     }
+//     fn add(&mut self, start: i32, end: i32, value: T) {
+//         self.add(start, end, value);
+//     }
+//     fn index(&mut self) {
+//         self.index();
+//     }
+// }
 
 
 type GenericError = Box<dyn Error>;
@@ -95,24 +95,27 @@ fn parse_bed_line(line: &[u8]) -> (&str, i32, i32) {
 }
 
 
-// Read a bed file into a SuperIntervals
-fn read_bed_file<I: IntervalCollection<()>>(path: &str) -> Result<FnvHashMap<String, I>, GenericError> {
+// Read a bed file into a IntervalMap
+// fn read_bed_file<I: IntervalCollection<()>>(path: &str) -> Result<FnvHashMap<String, I>, GenericError> {
+fn read_bed_file(path: &str) -> Result<FnvHashMap<String, IntervalMap<()>>, GenericError> {
     let mut nodes = FnvHashMap::default();
     let file = File::open(path)?;
     let mut rdr = BufReader::new(file);
     let mut line = Vec::new();
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (seqname, first, last) = parse_bed_line(&line);
-        if seqname != "chr1" {
+        if seqname != "chr1" || last < 0 || last < first {
+            line.clear();
             continue;
         }
-        let intervals = nodes.entry(seqname.to_string()).or_insert_with(I::new);
+//         let intervals = nodes.entry(seqname.to_string()).or_insert_with(I::new);
+        let intervals = nodes.entry(seqname.to_string()).or_insert_with(IntervalMap::new);
         intervals.add(first, last, ());
         line.clear();
     }
     let now = Instant::now();
     for intervals in nodes.values_mut() {
-        intervals.index();
+        intervals.build();
     }
     eprint!("{},", now.elapsed().as_micros());
     std::io::stderr().flush().unwrap();
@@ -127,7 +130,8 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     let mut line = Vec::new();
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (chrom, first, last) = parse_bed_line(&line);
-        if chrom != "chr1" {
+        if chrom != "chr1" || last < 0 || last < first {
+            line.clear();
             continue;
         }
         ranges.push((first, last));
@@ -135,8 +139,9 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     }
     //
     eprint!("SuperIntervals-rs,");
-    let mut trees: FnvHashMap<String, SuperIntervals<()>> = read_bed_file::<SuperIntervals<()>>(filename_a)?;
-    let intervals: &mut SuperIntervals<()> = trees.get_mut("chr1").ok_or("Chromosome intervals not found")?;
+//     let mut trees: FnvHashMap<String, IntervalMap<()>> = read_bed_file::<IntervalMap<()>>(filename_a)?;
+    let mut trees: FnvHashMap<String, IntervalMap<()>> = read_bed_file(filename_a)?;
+    let intervals: &mut IntervalMap<()> = trees.get_mut("chr1").ok_or("Chromosome intervals not found")?;
 
     // Verify the deserialized data
     let serialized_size = bincode::serialized_size(&intervals).unwrap();
@@ -148,7 +153,18 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     results.reserve(10000);
     let mut now = Instant::now();
     for &(first, last) in &ranges {
-        intervals.find_overlaps(first, last, &mut results);
+        intervals.search_values(first, last, &mut results);
+        total_found += results.len();
+        results.clear();
+    }
+    eprint!("{},{},", now.elapsed().as_micros(), total_found);
+    std::io::stderr().flush().unwrap();
+
+    // Find overlaps2
+    total_found = 0;
+    now = Instant::now();
+    for &(first, last) in &ranges {
+        intervals.search_values_large(first, last, &mut results);
         total_found += results.len();
         results.clear();
     }
@@ -159,38 +175,47 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     let mut n_overlaps = 0;
     now = Instant::now();
     for &(first, last) in &ranges {
-        n_overlaps += intervals.count_overlaps(first, last);
+        n_overlaps += intervals.count(first, last);
+    }
+    eprint!("{},{},", now.elapsed().as_micros(), n_overlaps);
+    std::io::stderr().flush().unwrap();
+
+    // Count overlaps exponential search
+    let mut n_overlaps = 0;
+    now = Instant::now();
+    for &(first, last) in &ranges {
+        n_overlaps += intervals.count_large(first, last);
     }
     eprint!("{},{}\n", now.elapsed().as_micros(), n_overlaps);
     std::io::stderr().flush().unwrap();
 
     //
-    eprint!("SuperIntervalsEytz-rs,");
-    let mut trees2: FnvHashMap<String, SuperIntervalsEytz<()>> = read_bed_file::<SuperIntervalsEytz<()>>(filename_a)?;
-    let intervals2: &mut SuperIntervalsEytz<()> = trees2.get_mut("chr1").ok_or("Chromosome intervals not found")?;
-
-    // Find overlaps (collecting results)
-    total_found = 0;
-    results.clear();
-    results.reserve(10000);
-    now = Instant::now();
-    for &(first, last) in &ranges {
-        intervals2.find_overlaps(first, last, &mut results);
-        total_found += results.len();
-        results.clear();
-    }
-    eprint!("{},{},", now.elapsed().as_micros(), total_found);
-    std::io::stderr().flush().unwrap();
-
-    // Count overlaps
-    n_overlaps = 0;
-    now = Instant::now();
-    for &(first, last) in &ranges {
-        n_overlaps += intervals2.count_overlaps(first, last);
-    }
-    eprint!("{},{}\n", now.elapsed().as_micros(), n_overlaps);
-    std::io::stderr().flush().unwrap();
-
+//     eprint!("IntervalMapEytz-rs,");
+//     let mut trees2: FnvHashMap<String, IntervalMapEytz<()>> = read_bed_file::<IntervalMapEytz<()>>(filename_a)?;
+//     let intervals2: &mut IntervalMapEytz<()> = trees2.get_mut("chr1").ok_or("Chromosome intervals not found")?;
+//
+//     // Find overlaps (collecting results)
+//     total_found = 0;
+//     results.clear();
+//     results.reserve(10000);
+//     now = Instant::now();
+//     for &(first, last) in &ranges {
+//         intervals2.find_overlaps(first, last, &mut results);
+//         total_found += results.len();
+//         results.clear();
+//     }
+//     eprint!("{},{},", now.elapsed().as_micros(), total_found);
+//     std::io::stderr().flush().unwrap();
+//
+//     // Count overlaps
+//     n_overlaps = 0;
+//     now = Instant::now();
+//     for &(first, last) in &ranges {
+//         n_overlaps += intervals2.count(first, last);
+//     }
+//     eprint!("{},{}\n", now.elapsed().as_micros(), n_overlaps);
+//     std::io::stderr().flush().unwrap();
+//
     Ok(())
 }
 
@@ -211,8 +236,8 @@ struct Args {
 }
 
 fn query_bed_files_coverage(filename_a: &str, filename_b: &str) -> Result<(), GenericError> {
-    let mut trees: FnvHashMap<String, SuperIntervals<()>> = read_bed_file::<SuperIntervals<()>>(filename_a)?;
-//     let tree = read_bed_file(filename_a)?;
+//     let mut trees: FnvHashMap<String, IntervalMap<()>> = read_bed_file::<IntervalMap<()>>(filename_a)?;
+    let mut trees: FnvHashMap<String, IntervalMap<()>> = read_bed_file(filename_a)?;
 
     let file = File::open(filename_b)?;
     let mut rdr = BufReader::new(file);
@@ -223,10 +248,8 @@ fn query_bed_files_coverage(filename_a: &str, filename_b: &str) -> Result<(), Ge
 
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (seqname, first, last) = parse_bed_line(&line);
-
-        let mut cov: i32 = 0;
         let mut count: usize = 0;
-
+        let mut cov: i32 = 0;
         if let Some(seqname_tree) = trees.get_mut(seqname) {
             let countcov = seqname_tree.coverage(first, last);
             count = countcov.0;
@@ -243,9 +266,7 @@ fn query_bed_files_coverage(filename_a: &str, filename_b: &str) -> Result<(), Ge
                 cov,
             );
         }
-
         total_count += count;
-
         line.clear();
     }
 

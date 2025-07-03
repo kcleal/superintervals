@@ -1,3 +1,2 @@
-from .intervalset import (
-    IntervalSet
-)
+from .intervalmap import (
+    IntervalMap)

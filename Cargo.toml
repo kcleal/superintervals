@@ -1,7 +1,7 @@
 [package]
 name = "superintervals"
 description = "Interval overlap library"
-version = "0.2.8"
+version = "0.3.0"
 authors = ["Kez Cleal. <clealk@cardiff.ac.uk>"]
 edition = "2021"
 repository = "https://github.com/kcleal/superintervals"
@@ -12,6 +12,7 @@ license-file = "LICENSE"
 exclude = [
     "test/*",
     "src/superintervals/*",
+    "src/R/*",
     "src/superintervals.egg*",
     ".idea",
     "dist",

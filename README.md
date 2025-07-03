@@ -4,57 +4,376 @@ SuperIntervals
 A fast, memory-efficient data structure for interval intersection queries.
 SuperIntervals uses a novel superset-index approach that maintains 
 intervals in position-sorted order, enabling cache-friendly searches and SIMD-optimized counting.
+Available for [C++](#cpp), [Rust](#rust), [Python](#python), [R](#r).
 
 ### Features:
 
 - Linear-time index construction from sorted intervals
 - Cache-friendly querying
 - SIMD acceleration (AVX2/Neon) for counting operations
-- Minimal memory overhead (one size_t per interval)
-- Available for C++, Rust, Python, and C
-- Optional Eytzinger memory layout for slightly faster queries (C++/Rust only)
+- Small memory overhead (one size_t per interval)
+- Optional Eytzinger memory layout for slightly faster queries (C++ only)
 - No dependencies, header only
 
-
-## Quick Start
+### Notes:
 
 - Intervals are considered end-inclusive 
-- The index() function must be called before any queries
-- Found intervals are returned in reverse position-sorted order
+- The build() function must be called before any queries
+- Found intervals are returned in **reverse** position-sorted order
 
-### 🐍 Python
+## 🐍 Python
+
+Install using `pip install superintervals`
 
 ```python
-from superintervals import IntervalSet
+from superintervals import IntervalMap
 
-iset = IntervalSet()
-iset.add(10, 20, 'A')
-iset.index()
-overlaps = iset.find_overlaps(8, 20)
+imap = IntervalMap()
+imap.add(10, 20, 'A')
+imap.build()
+results = imap.search_values(8, 20)  # ['A']
 ```
 
-### ⚙️ C++
+### API Reference
+
+**IntervalMap** class:
+
+- `add(start, end, value=None)`  
+  Add interval with associated value
+
+
+- `build()`  
+  Build index (required before queries)
+
+
+- `clear()`  
+  Remove all intervals
+
+
+- `reserve(n)`  
+  Reserve space for n intervals
+
+
+- `size()`  
+  Get number of intervals
+
+
+- `at(index)`  
+  Get interval at index as (start, end, value)
+
+
+- `starts_at(index)`  
+  Get start position at index
+
+
+- `ends_at(index)`  
+  Get end position at index
+
+
+- `data_at(index)`  
+  Get value at index
+
+
+- `has_overlaps(start, end)`  
+  Check if any intervals overlap range
+
+
+- `count(start, end)`  
+  Count overlapping intervals
+
+
+- `search_values(start, end)`  
+  Get values of overlapping intervals
+
+
+- `search_idxs(start, end)`  
+  Get indices of overlapping intervals
+
+
+- `search_keys(start, end)`  
+  Get (start, end) pairs of overlapping intervals
+
+
+- `search_items(start, end)`  
+  Get (start, end, value) tuples of overlapping intervals
+
+
+- `coverage(start, end)`  
+  Get (count, total_coverage) for range
+
+## 🐘R
+
+```r
+library(superintervals)
+
+imap <- IntervalMap()
+add(imap, 10, 20, "A")
+build(imap)
+results <- search_values(imap, 8, 20)
+```
+
+### API Reference
+
+**IntervalMap()** - Create new IntervalMap object
+
+- `add(x, start, end, value=NULL)`  
+  Add interval with associated value
+
+
+- `build(x)`  
+  Build index (required before queries)
+
+
+- `clear(x)`  
+  Remove all intervals
+
+
+- `reserve(x, n)`  
+  Reserve space for n intervals
+
+
+- `size(x)`  
+  Get number of intervals
+
+
+- `at(x, idx)`  
+  Get interval at index as list(start, end, value)
+
+
+- `starts_at(x, idx)`  
+  Get start position at index
+
+
+- `ends_at(x, idx)`  
+  Get end position at index
+
+
+- `data_at(x, idx)`  
+  Get value at index
+
+
+- `has_overlaps(x, start, end)`  
+  Check if any intervals overlap range
+
+
+- `count(x, start, end)`  
+  Count overlapping intervals
+
+
+- `search_values(x, start, end)`  
+  Get values of overlapping intervals
+
+
+- `search_idxs(x, start, end)`  
+  Get indices of overlapping intervals
+
+
+- `search_keys(x, start, end)`  
+  Get list(start, end) of overlapping intervals
+
+
+- `search_items(x, start, end)`  
+  Get list(start, end, value) of overlapping intervals
+
+
+- `coverage(x, start, end)`  
+  Get list(count, total_coverage) for range
+
+
+## ⚙️ C++
+
+Header only implementation, copy to your include directory.
+
 ```cpp
 #include "SuperIntervals.hpp"
 
-SuperIntervals<int, std::string> intervals;
-intervals.add(1, 5, "A");
-intervals.index();
+si::IntervalMap<int, std::string> imap;
+imap.add(1, 5, "A");
+imap.build();
 std::vector<std::string> results;
-intervals.findOverlaps(4, 9, results);
+imap.search_values(4, 9, results);
 ```
 
-### 🦀 Rust
+### API Reference
+
+**IntervalMap<S, T>** class (also **IntervalMapEytz<S, T>** for Eytzinger layout):
+
+- `void add(S start, S end, const T& value)`  
+  Add interval with associated value
+
+
+- `void build()`  
+  Build index (required before queries)
+
+
+- `void clear()`  
+  Remove all intervals
+
+
+- `void reserve(size_t n)`  
+  Reserve space for n intervals
+
+
+- `size_t size()`  
+  Get number of intervals
+
+
+- `const Interval<S,T>& at(size_t index)`  
+  Get Interval<S,T> at index
+
+
+- `void at(size_t index, Interval<S,T>& interval)`  
+  Fill provided Interval object
+
+
+- `bool has_overlaps(S start, S end)`  
+  Check if any intervals overlap range
+
+
+- `size_t count(S start, S end)`  
+  Count overlapping intervals (SIMD optimized)
+
+
+- `size_t count_linear(S start, S end)`  
+  Count overlapping intervals (linear)
+
+
+- `size_t count_large(S start, S end)`  
+  Count optimized for large ranges
+
+
+- `void search_values(S start, S end, std::vector<T>& found)`  
+  Fill vector with values of overlapping intervals
+
+
+- `void search_values_large(S start, S end, std::vector<T>& found)`  
+  Search optimized for large ranges
+
+
+- `void search_idxs(S start, S end, std::vector<size_t>& found)`  
+  Fill vector with indices of overlapping intervals
+
+
+- `void search_keys(S start, S end, std::vector<std::pair<S,S>>& found)`  
+  Fill vector with (start,end) pairs
+
+
+- `void search_items(S start, S end, std::vector<Interval<S,T>>& found)`  
+  Fill vector with Interval<S,T> objects
+
+
+- `void search_point(S point, std::vector<T>& found)`  
+  Find intervals containing single point
+
+
+- `void coverage(S start, S end, std::pair<size_t,S>& result)`  
+  Get pair(count, total_coverage) for range
+
+
+- `IndexRange search_idxs(S start, S end)`  
+  Returns IndexRange for range-based loops over indices
+
+
+- `ItemRange search_items(S start, S end)`  
+  Returns ItemRange for range-based loops over intervals
+
+
+## 🦀 Rust
+
+Add to your project using `cargo add superintervals`
 
 ```rust
-use super_intervals::SuperIntervals;
+use superintervals::IntervalMap;
 
-let mut intervals = SuperIntervals::new();
-intervals.add(1, 5, "A");
-intervals.index();
+let mut imap = IntervalMap::new();
+imap.add(1, 5, "A");
+imap.build();
 let mut results = Vec::new();
-intervals.find_overlaps(4, 11, &mut results);
+imap.search_values(4, 11, &mut results);
 ```
+
+### API Reference
+
+**IntervalMap<T>** struct (also **IntervalMapEytz<T>** for Eytzinger layout):
+
+- `fn new() -> Self`  
+  Create new IntervalMap
+
+
+- `fn add(&mut self, start: i32, end: i32, value: T)`  
+  Add interval with associated value
+
+
+- `fn build(&mut self)`  
+  Build index (required before queries)
+
+
+- `fn clear(&mut self)`  
+  Remove all intervals
+
+
+- `fn reserve(&mut self, n: usize)`  
+  Reserve space for n intervals
+
+
+- `fn size(&self) -> usize`  
+  Get number of intervals
+
+
+- `fn at(&self, index: usize) -> Interval<T>`  
+  Get Interval<T> at index
+
+
+- `fn has_overlaps(&mut self, start: i32, end: i32) -> bool`  
+  Check if any intervals overlap range
+
+
+- `fn count(&mut self, start: i32, end: i32) -> usize`  
+  Count overlapping intervals (SIMD optimized)
+
+
+- `fn count_linear(&mut self, start: i32, end: i32) -> usize`  
+  Count overlapping intervals (linear)
+
+
+- `fn count_large(&mut self, start: i32, end: i32) -> usize`  
+  Count optimized for large ranges
+
+
+- `fn search_values(&mut self, start: i32, end: i32, found: &mut Vec<T>)`  
+  Fill vector with values of overlapping intervals
+
+
+- `fn search_values_large(&mut self, start: i32, end: i32, found: &mut Vec<T>)`  
+  Search optimized for large ranges
+
+
+- `fn search_idxs(&mut self, start: i32, end: i32, found: &mut Vec<usize>)`  
+  Fill vector with indices of overlapping intervals
+
+
+- `fn search_keys(&mut self, start: i32, end: i32, found: &mut Vec<(i32, i32)>)`  
+  Fill vector with (start,end) pairs
+
+
+- `fn search_items(&mut self, start: i32, end: i32, found: &mut Vec<Interval<T>>)`  
+  Fill vector with Interval<T> objects
+
+
+- `fn search_stabbed(&mut self, point: i32, found: &mut Vec<T>)`  
+  Find intervals containing single point
+
+
+- `fn coverage(&mut self, start: i32, end: i32) -> (usize, i32)`  
+  Get (count, total_coverage) for range
+
+
+- `fn search_idxs_iter(&mut self, start: i32, end: i32) -> IndexIterator<T>`  
+  Iterator over indices
+
+
+- `fn search_items_iter(&mut self, start: i32, end: i32) -> ItemIterator<T>`  
+  Iterator over intervals
 
 
 ## Test programs
@@ -63,6 +382,7 @@ Test programs expect plain text BED files and only assess chr1 records - other c
 C++ program compares SuperIntervals, ImplicitIntervalTree, IntervalTree and NCLS:
 ```
 cd test; make
+./run-tests
 ./run-cpp-libs a.bed b.bed
 ```
 
@@ -72,24 +392,32 @@ RUSTFLAGS="-Ctarget-cpu=native" cargo run --release --example bed-intersect-si
 cargo run --release --example bed-intersect-si a.bed b.bed
 ```
 
-## Benchmark
+Python program:
+```
+python test/run-py-libs.py a.bed b.bed
+```
 
-Benchmark
+R program:
+```
+Rscript src/R/benchmark.R
+```
+
+## Benchmark
 
 SuperIntervals (SI) was compared with:
 
-    Coitrees (Rust: https://github.com/dcjones/coitrees)
-    Implicit Interval Tree (C++: https://github.com/lh3/cgranges)
-    Interval Tree (C++: https://github.com/ekg/intervaltree)
-    Nested Containment List (C: https://github.com/pyranges/ncls/tree/master/ncls/src)
+- Coitrees (Rust: https://github.com/dcjones/coitrees)
+- Implicit Interval Tree (C++: https://github.com/lh3/cgranges)
+- Interval Tree (C++: https://github.com/ekg/intervaltree)
+- Nested Containment List (C: https://github.com/pyranges/ncls/tree/master/ncls/src)
 
 Main results:
 
-- Finding interval intersections is roughly ~1.5-3x faster than the next best library (Coitrees for Rust, Implicit Interval Tree for C++), with some 
+- Finding interval intersections is on average ~1.5-3x faster than other libraries (Coitrees for Rust, Implicit Interval Tree for C++), with some 
 exceptions. Coitrees-s was faster for one test (ONT reads, sorted DB53 reads).
-- The SIMD counting performance of coitrees and superintervals is similar.
+- The SIMD counting performance of coitrees and superintervals was similar.
 
-Datasets:
+Datasets https://github.com/kcleal/superintervals/releases/download/v0.2.0/data.tar.gz:
 
 - `rna / anno` RNA-seq reads and annotations from cgranges repository
 - `ONT reads` nanopore alignments from sample PAO33946 chr1, converted to bed format
@@ -100,10 +428,11 @@ Datasets:
 Test programs use internal timers and print data to stdout, measuring the index time, and time to find all intersections. Other steps such as file IO are ignored. Test programs also only assess chr1 bed records - other chromosomes are ignored. For 'chrM' records, the M was replaced with 1 using sed. Data were assessed in position sorted and random order. Datasets can be found on the Releases page, and the test/run_tools.sh script has instructions for how to repeat the benchmark.
 
 Timings were in microseconds using an i9-11900K, 64 GB, 2TB NVMe machine.
+
 ## Finding interval intersections
 
-    Coitrees-s uses the SortedQuerent version of coitrees
-    SI = superintervals. Eytz refers to the eytzinger layout. -rs is the Rust implementation.
+- Coitrees-s uses the SortedQuerent version of coitrees
+- SI = superintervals. Eytz refers to the eytzinger layout. -rs is the Rust implementation.
 
 ### Intervals in sorted order
 
@@ -155,128 +484,6 @@ Timings were in microseconds using an i9-11900K, 64 GB, 2TB NVMe machine.
 | mito-b, mito-a        | 14354    | 7579              | 7600                  | 4442               | **4383**                   |
 | rna, anno             | 22       | 30                | 29                    | **25**                 | **25**                     |
 
-## Python
-
-Install using `pip install superintervals`
-
-```
-from superintervals import IntervalSet
-
-iset = IntervalSet()
-
-# Add interval start, end, value
-iset.add(10, 20, 0)
-iset.add(19, 18, 1)
-iset.add(8, 11, "hello")
-
-# If you only need integers as values use the add_int_value method instead e.g:
-# iset.add_int_value(10, 20, 1)
-# Note, mixing add and add_int_value is not allowed (just use one or the other)
-
-# Index method must be called before queries
-iset.index()
-
-iset.any_overlaps(8, 20)
-# >>> True
-
-iset.count_overlaps(8, 20)
-# >>> 3
-
-iset.find_overlaps(8, 20)
-# >>> [1, 0, "hello"]
-
-iset.set_search_interval(8, 20)
-for itv in iset:
-    print(itv)
-
-# >>> (19, 18, 1) 
-# >>> (10, 20, 0) 
-# >>> (8, 11, "hello")
-
-# Print interval at index
-iset.at(0)
-# >>> (8, 11, "hello")
-```
-
-## Cpp
-
-```cpp
-#include <iostream>
-#include <vector>
-#include "SuperIntervals.hpp"
-
-int main() {
-    // Create a SuperIntervals instance for integer intervals with string data
-    // Specify with S, T template types
-    SuperIntervals<int, std::string> intervals;
-
-    // Add some intervals
-    intervals.add(1, 5, "Interval A");
-    intervals.add(3, 7, "Interval B");
-    intervals.add(6, 10, "Interval C");
-    intervals.add(8, 12, "Interval D");
-
-    // Index the intervals (must be called before querying)
-    intervals.index();
-
-    // Find overlaps for the range [4, 9]
-    std::vector<std::string> overlaps;
-    intervals.findOverlaps(4, 9, overlaps);
-
-    // Print the overlapping intervals
-    for (const auto& interval : overlaps) {
-        std::cout << interval << std::endl;
-    }
-    
-    // Count the intervals instead
-    std::cout << "Count: " << intervals.countOverlaps(4, 9) << std::endl;
-    
-    // Count stabbed intervals at point 7
-    std::cout << "Number of intervals containing point 7: " << intervals.countStabbed(7) << std::endl;
-
-    return 0;
-}
-```
-There is also a `SuperIntervalsEytz` subclasses that can be used. `SuperIntervalsEytz` 
-uses an Eytzinger memory layout that can sometimes offer faster query times at the cost of higher memory
-usage and slower indexing time.
-
-## Rust
-
-Fetch using cargo add.
-
-```
-use super_intervals::SuperIntervals;
-
-fn main() {
-    // Create a new instance of SuperIntervals
-    let mut intervals = SuperIntervals::new();
-
-    // Add some intervals with associated data of type T
-    intervals.add(1, 5, "Interval A");
-    intervals.add(10, 15, "Interval B");
-    intervals.add(7, 12, "Interval C");
-
-    // Call index() to prepare the intervals for queries
-    intervals.index();
-
-    // Query for overlapping intervals with a range (4, 11)
-    let mut found_intervals = Vec::new();
-    intervals.find_overlaps(4, 11, &mut found_intervals);
-    
-    // Display found intervals
-    for interval in found_intervals {
-        println!("Found overlapping interval: {}", interval);
-    }
-
-    // Count overlaps with a range (4, 11)
-    let overlap_count = intervals.count_overlaps(4, 11);
-    println!("Number of overlapping intervals: {}", overlap_count);
-}
-```
-There is also `SuperIntervalsEytz` implementation. `SuperIntervalsEytz` 
-uses an Eytzinger memory layout that can sometimes offer faster query times at the cost of higher memory
-usage and slower indexing time.
 
 ## Acknowledgements
 

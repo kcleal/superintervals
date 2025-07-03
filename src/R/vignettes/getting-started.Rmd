@@ -1,0 +1,104 @@
+---
+title: "Getting Started with SuperIntervals"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with SuperIntervals}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+SuperIntervals provides fast interval overlap queries through the IntervalMap data structure. This is particularly useful for genomic analysis, time series data, and any application requiring efficient range-based lookups.
+
+## Basic Usage
+
+```{r setup}
+library(superintervals)
+```
+
+### Creating and Building an IntervalMap
+
+```{r basic}
+# Create a new IntervalMap
+imap <- IntervalMap()
+
+# Add some intervals with associated values
+add(imap, 10, 20, "Gene A")
+add(imap, 15, 25, "Gene B")
+add(imap, 30, 40, "Gene C")
+
+# Build the index (required before queries)
+build(imap)
+
+# View the IntervalMap
+print(imap)
+```
+
+### Searching for Overlaps
+
+```{r search}
+# Find all values that overlap with range 12-18
+values <- search_values(imap, 12, 18)
+print(values)
+
+# Get the intervals (start, end) that overlap
+keys <- search_keys(imap, 12, 18)
+print(keys)
+
+# Get complete information (start, end, value)
+items <- search_items(imap, 12, 18)
+print(items)
+```
+
+### Query Statistics
+
+```{r stats}
+# Check if any intervals overlap a range
+has_overlaps(imap, 5, 12)
+has_overlaps(imap, 50, 60)
+
+# Count overlapping intervals
+count(imap, 12, 18)
+
+# Get coverage statistics
+coverage(imap, 10, 40)
+```
+
+### Accessing Individual Intervals
+
+```{r access}
+# Get interval at specific index
+at(imap, 1)
+
+# Get just the start position
+starts_at(imap, 1)
+
+# Get just the end position
+ends_at(imap, 1)
+
+# Get just the value
+data_at(imap, 1)
+```
+
+## Performance Tips
+
+- Call `build()` after adding all intervals and before performing queries
+- Use `reserve()` if you know the number of intervals in advance
+- The IntervalMap is optimized for many queries on the same set of intervals
+
+## Use Cases
+
+SuperIntervals is ideal for:
+
+- **Genomics**: Finding genes/features overlapping genomic regions
+- **Time series**: Querying events within time ranges
+- **Spatial analysis**: Range-based spatial queries
+- **Data analysis**: Any scenario requiring fast interval overlap detection

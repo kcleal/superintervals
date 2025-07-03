@@ -28,3 +28,15 @@
 /test/cgranges.o
 /test/chr1.genome
 /old/
+/src/R/src/superintervals.so
+/src/R/src/RcppExports.o
+/src/R/src/intervalmap_r.o
+/test/bed-intersect-rl
+/src/superintervals/intervalmap.cpp
+/src/R/..Rcheck/
+/src/R/superintervals_0.99.0.tar.gz
+/src/R/superintervals.Rcheck/
+/src/superintervals.egg-info/
+/R/..Rcheck/
+/R/superintervals.Rcheck/
+/R/superintervals_0.99.0.tar.gz

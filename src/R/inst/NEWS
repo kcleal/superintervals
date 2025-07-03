@@ -1,0 +1,9 @@
+CHANGES IN VERSION 0.99.0
+--------------------------
+
+NEW FEATURES
+
+    o Initial Bioconductor submission
+    o High-performance interval operations using superset-index approach
+    o SIMD-optimized counting operations
+    o Cache-friendly interval storage and querying

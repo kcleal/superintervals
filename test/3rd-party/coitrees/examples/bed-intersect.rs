@@ -70,6 +70,10 @@ fn read_bed_file(path: &str, name: &str) -> Result<FnvHashMap<String, COITree<()
     let mut line = Vec::new();
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
         let (seqname, first, last) = parse_bed_line(&line);
+        if seqname != "chr1" || last < 0 || last < first {
+            line.clear();
+            continue;
+        }
         let node_arr = if let Some(node_arr) = nodes.get_mut(seqname) {
             node_arr
         } else {
@@ -96,7 +100,11 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     let mut ranges: Vec<(i32, i32)> = Vec::new();
     let mut line = Vec::new();
     while rdr.read_until(b'\n', &mut line).unwrap() > 0 {
-        let (_, first, last) = parse_bed_line(&line);
+        let (chrom, first, last) = parse_bed_line(&line);
+        if chrom != "chr1" || last < 0 || last < first {
+            line.clear();
+            continue;
+        }
         ranges.push((first, last));
         line.clear();
     }

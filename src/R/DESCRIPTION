@@ -1,0 +1,37 @@
+Package: superintervals
+Type: Package
+Title: Fast, Memory-Efficient Interval Operations for Genomics
+Version: 0.99.0
+Date: 2025-06-09
+Author: Kez Cleal
+Maintainer: Kez Cleal <clealk@cardiff.ac.uk>
+Authors@R: person("Kez", "Cleal",
+                  email = "clealk@cardiff.ac.uk",
+                  role = c("aut", "cre"),
+                  comment = c(ORCID = "0000-0002-9775-3476"))
+Description: Provides a fast, memory-efficient data structure for interval
+    intersection queries using a novel superset-index approach. SuperIntervals
+    maintains intervals in position-sorted order, enabling cache-friendly
+    searches and SIMD-optimized counting operations. Designed for high-performance
+    genomics applications where fast interval operations are essential.
+License: MIT + file LICENSE
+URL: https://github.com/yourusername/superintervals
+BugReports: https://github.com/yourusername/superintervals/issues
+biocViews: Infrastructure, DataRepresentation, GenomeAnnotation,
+           Genetics, Preprocessing, Software, Sequencing
+Depends: R (>= 4.3.0)
+Imports:
+    Rcpp (>= 1.0.0)
+LinkingTo: Rcpp
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    microbenchmark,
+    IRanges
+SystemRequirements: C++17
+Encoding: UTF-8
+Language: en-US
+RoxygenNote: 7.3.2
+VignetteBuilder: knitr
+LazyData: false
