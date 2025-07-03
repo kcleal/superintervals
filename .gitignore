@@ -40,3 +40,6 @@
 /R/..Rcheck/
 /R/superintervals.Rcheck/
 /R/superintervals_0.99.0.tar.gz
+/test/3rd-party/rust-lapper_kc/target/
+/test/3rd-party/rust-lapper_kc/benches/
+/test/3rd-party/rust-lapper_kc/images/
