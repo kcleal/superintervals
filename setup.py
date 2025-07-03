@@ -19,6 +19,5 @@ setup(
     author_email="clealk@cardiff.ac.uk",
     packages=find_packages(where='src'),
     package_dir={"": "src"},
-    install_requires=['Cython'],
     ext_modules=cythonize(ext_modules),
 )

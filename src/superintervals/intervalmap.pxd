@@ -7,7 +7,7 @@ cdef extern from "Python.h":
     void Py_DECREF(object)
 
 
-cdef extern from "SuperIntervals.hpp" namespace "si":
+cdef extern from "superintervals.hpp" namespace "si":
     cdef cppclass Interval[S, T]:
         S start, end
         T data
