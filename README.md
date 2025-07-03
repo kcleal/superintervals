@@ -4,6 +4,7 @@ SuperIntervals
 A fast, memory-efficient data structure for interval intersection queries.
 SuperIntervals uses a novel superset-index approach that maintains 
 intervals in position-sorted order, enabling cache-friendly searches and SIMD-optimized counting.
+
 Available for [C++](#cpp), [Rust](#rust), [Python](#python), [R](#r).
 
 ### Features:
@@ -21,7 +22,7 @@ Available for [C++](#cpp), [Rust](#rust), [Python](#python), [R](#r).
 - The build() function must be called before any queries
 - Found intervals are returned in **reverse** position-sorted order
 
-## 🐍 Python
+## Python
 
 Install using `pip install superintervals`
 
@@ -101,7 +102,7 @@ results = imap.search_values(8, 20)  # ['A']
 - `coverage(start, end)`  
   Get (count, total_coverage) for range
 
-## 🐘R
+## R
 
 ```r
 library(superintervals)
@@ -180,7 +181,7 @@ results <- search_values(imap, 8, 20)
   Get list(count, total_coverage) for range
 
 
-## ⚙️ C++
+## Cpp
 
 Header only implementation, copy to your include directory.
 
@@ -278,7 +279,7 @@ imap.search_values(4, 9, results);
   Returns ItemRange for range-based loops over intervals
 
 
-## 🦀 Rust
+## Rust
 
 Add to your project using `cargo add superintervals`
 
