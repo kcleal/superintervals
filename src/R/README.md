@@ -15,9 +15,10 @@ enabling cache-friendly searches and SIMD-optimized counting operations.
 
 ## Installation
 
+Build and install:
 ```r
 cd superintervals/src/R
-bash ./build.sh  # Build and install
+bash ./build.sh
 ```
 
 ## Quick Start
