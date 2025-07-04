@@ -1,6 +1,8 @@
 # SuperIntervals
 
-The R Bioconductor package `superintervals` provides a fast, memory-efficient data structure for interval intersection queries in R. Built on a novel superset-index approach, SuperIntervals maintains intervals in position-sorted order, enabling cache-friendly searches and SIMD-optimized counting operations.
+The R Bioconductor package `superintervals` provides a fast, memory-efficient data structure for interval intersection queries in R.
+Built on a novel superset-index approach, SuperIntervals maintains intervals in position-sorted order,
+enabling cache-friendly searches and SIMD-optimized counting operations.
 
 ## Key Features
 

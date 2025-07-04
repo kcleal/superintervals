@@ -20,8 +20,8 @@ echo "=== Running R CMD check ==="
 TARBALL=$(ls -t superintervals_*.tar.gz | head -n1)
 R CMD check "$TARBALL" --no-manual
 
-echo "=== Build complete ==="
-echo "Package tarball: $TARBALL"
+# echo "=== Build complete ==="
+# echo "Package tarball: $TARBALL"
 
 echo "=== Installing ==="
 R CMD INSTALL .
