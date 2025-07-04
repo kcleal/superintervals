@@ -105,7 +105,7 @@ results = imap.search_values(8, 20)  # ['A']
 ## R
 
 ```r
-library(superintervals)
+library(superintervalsr)
 
 imap <- IntervalMap()
 add(imap, 10, 20, "A")
