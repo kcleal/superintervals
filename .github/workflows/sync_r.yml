@@ -27,5 +27,5 @@ jobs:
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        git remote add superintervals-r https://x-access-token:${PAT_TOKEN}@github.com/kcleal/superintervals-r.git
-        git subtree push --prefix=src/R superintervals-r main
+        git remote add superintervalsr https://x-access-token:${PAT_TOKEN}@github.com/kcleal/superintervalsr.git
+        git subtree push --prefix=src/R superintervalsr main

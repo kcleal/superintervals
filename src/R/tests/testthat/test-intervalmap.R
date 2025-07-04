@@ -1,5 +1,5 @@
 library(testthat)
-library(superintervals)
+library(superintervalsr)
 
 test_that("IntervalMap creation and basic operations work", {
   imap <- IntervalMap()

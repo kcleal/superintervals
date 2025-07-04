@@ -1,4 +1,4 @@
 library(testthat)
-library(superintervals)
+library(superintervalsr)
 
-test_check("superintervals")
+test_check("superintervalsr")

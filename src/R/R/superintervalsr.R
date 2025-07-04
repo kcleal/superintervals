@@ -1,4 +1,4 @@
-#' @useDynLib superintervals, .registration=TRUE
+#' @useDynLib superintervalsr, .registration=TRUE
 #' @importFrom Rcpp evalCpp
 NULL
 

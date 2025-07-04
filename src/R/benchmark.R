@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
-# benchmark.R - SuperIntervals vs IRanges (NCLS algorithm)
+# benchmark.R - SuperIntervals-r vs IRanges (NCLS algorithm)
 
 suppressPackageStartupMessages({
-  library(superintervals)
+  library(superintervalsr)
   library(IRanges)
   library(microbenchmark)
 })

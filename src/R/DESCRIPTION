@@ -1,4 +1,4 @@
-Package: superintervals
+Package: superintervalsr
 Type: Package
 Title: Fast, Memory-Efficient Interval Operations for Genomics
 Version: 0.99.0
@@ -15,8 +15,8 @@ Description: Provides a fast, memory-efficient data structure for interval
     searches and SIMD-optimized counting operations. Designed for high-performance
     genomics applications where fast interval operations are essential.
 License: MIT + file LICENSE
-URL: https://github.com/yourusername/superintervals
-BugReports: https://github.com/yourusername/superintervals/issues
+URL: https://github.com/kcleal/superintervalsr
+BugReports: https://github.com/kcleal/superintervalsr/issues
 biocViews: Infrastructure, DataRepresentation, GenomeAnnotation,
            Genetics, Preprocessing, Software, Sequencing
 Depends: R (>= 4.3.0)

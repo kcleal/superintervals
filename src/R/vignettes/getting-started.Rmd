@@ -21,7 +21,7 @@ SuperIntervals provides fast interval overlap queries through the IntervalMap da
 ## Basic Usage
 
 ```{r setup}
-library(superintervals)
+library(superintervalsr)
 ```
 
 ### Creating and Building an IntervalMap

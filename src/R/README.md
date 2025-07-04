@@ -1,7 +1,7 @@
 # SuperIntervals
 
-The R Bioconductor package `superintervals` provides a fast, memory-efficient data structure for interval intersection queries in R.
-Built on a novel superset-index approach, SuperIntervals maintains intervals in position-sorted order,
+The R Bioconductor package `superintervalsr` provides a fast, memory-efficient data structure for interval intersection queries in R.
+Built on a novel superset-index approach that maintains intervals in position-sorted order,
 enabling cache-friendly searches and SIMD-optimized counting operations.
 
 ## Key Features
@@ -17,8 +17,10 @@ enabling cache-friendly searches and SIMD-optimized counting operations.
 
 Build and install:
 ```r
-cd superintervals/src/R
 bash ./build.sh
+
+# Run a small benchmark vs IRanges
+Rscript benchmark.R
 ```
 
 ## Quick Start
@@ -121,7 +123,7 @@ clear(imap)
 ## Example: Genomic Analysis
 
 ```r
-library(superintervals)
+library(superintervalsr)
 
 # Create interval map for gene annotations
 genes <- IntervalMap()
