@@ -16,11 +16,6 @@ enabling cache-friendly searches and SIMD-optimized counting operations.
 ## Installation
 
 ```r
-# Install from Bioconductor
-if (!require("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-BiocManager::install("superintervals")
-
 # Build from source:
 cd superintervals/src/R
 bash ./build.sh
