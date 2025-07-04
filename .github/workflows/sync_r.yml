@@ -20,7 +20,7 @@ jobs:
         
     - name: Add remote and push subtree
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        git remote add superintervals-r https://x-access-token:${GITHUB_TOKEN}@github.com/kcleal/superintervals-r.git
+        git remote add superintervals-r https://x-access-token:${PAT_TOKEN}@github.com/kcleal/superintervals-r.git
         git subtree push --prefix=src/R superintervals-r main
