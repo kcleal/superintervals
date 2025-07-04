@@ -14,14 +14,25 @@ jobs:
       with:
         fetch-depth: 0  # Need full history for subtree
         
-    - name: Setup Git
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        
-    - name: Add remote and push subtree
+    - name: Debug PAT token
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        git remote add superintervals-r https://x-access-token:${PAT_TOKEN}@github.com/kcleal/superintervals-r.git
+        if [ -z "$PAT_TOKEN" ]; then
+          echo "PAT_TOKEN is empty or not set"
+        else
+          echo "PAT_TOKEN is set (length: ${#PAT_TOKEN})"
+        fi
+
+    - name: Setup Git with PAT
+      env:
+        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config url."https://x-access-token:${PAT_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+    - name: Add remote and push subtree
+      run: |
+        git remote add superintervals-r https://github.com/kcleal/superintervals-r.git
         git subtree push --prefix=src/R superintervals-r main
