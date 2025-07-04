@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
     paths: [ 'src/R/**' ]  # Only trigger when R code changes
+  workflow_dispatch:
 
 jobs:
   sync:
