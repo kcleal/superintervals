@@ -28,7 +28,6 @@ pub struct IntervalMap<T>
     pub ends: Vec<i32>,
     pub branch: Vec<usize>,
     pub data: Vec<T>,
-    pub idx: usize,
     pub start_sorted: bool,
     pub end_sorted: bool,
 }
@@ -42,7 +41,6 @@ impl<T: Clone> IntervalMap<T>
             ends: Vec::new(),
             branch: Vec::new(),
             data: Vec::new(),
-            idx: 0,
             start_sorted: true,
             end_sorted: true,
         }
@@ -53,7 +51,6 @@ impl<T: Clone> IntervalMap<T>
         self.ends.clear();
         self.branch.clear();
         self.data.clear();
-        self.idx = 0;
     }
 
     pub fn reserve(&mut self, n: usize) {
@@ -151,28 +148,28 @@ impl<T: Clone> IntervalMap<T>
                 br.push((*self.ends.get_unchecked(i), i));
             }
         }
-        self.idx = 0;
     }
 
     #[inline(always)]
-    pub fn upper_bound(&mut self, value: i32) {
+    pub fn upper_bound(&self, value: i32) -> usize {
+        let mut idx = 0;
         let mut length = self.starts.len();
         unsafe {
-            self.idx = 0;
             while length > 1 {
                 let half = length / 2;
-                self.idx += (*self.starts.get_unchecked(self.idx + half) <= value) as usize * (length - half);
+                idx += (*self.starts.get_unchecked(idx + half) <= value) as usize * (length - half);
                 length = half;
             }
-//             self.idx = self.idx.wrapping_sub((*self.starts.get_unchecked(self.idx) > value) as usize);
-            if *self.starts.get_unchecked(self.idx) > value {
-                self.idx = self.idx.wrapping_sub(1);
+//             idx = idx.wrapping_sub((*self.starts.get_unchecked(idx) > value) as usize);
+            if *self.starts.get_unchecked(idx) > value {
+                idx = idx.wrapping_sub(1);
             }
         }
+        return idx;
     }
 
     #[inline(always)]
-    pub fn upper_bound_range(&mut self, value: i32, right: usize) -> usize {
+    pub fn upper_bound_range(&self, value: i32, right: usize) -> usize {
         let mut left = right;
         let mut search_right = right;
         let mut bound = 1;
@@ -198,62 +195,49 @@ impl<T: Clone> IntervalMap<T>
         left
     }
 
-    pub fn has_overlaps(&mut self, start: i32, end: i32) -> bool {
+    pub fn has_overlaps(&self, start: i32, end: i32) -> bool {
         if self.starts.is_empty() {
             return false;
         }
-        self.upper_bound(end);
+        let idx = self.upper_bound(end);
         unsafe {
-            self.idx != usize::MAX && start <= *self.ends.get_unchecked(self.idx)
+            idx != usize::MAX && start <= *self.ends.get_unchecked(idx)
         }
     }
 
-    fn setup_search(&mut self, start: i32, end: i32) -> bool {
+    fn setup_search(&self, start: i32, end: i32) -> Option<usize> {  // Return Option<usize>
         if self.starts.is_empty() {
-            return false;
+            return None;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
-            return false;
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
+            return None;
         }
         unsafe {
-            if start > *self.ends.get_unchecked(self.idx) || *self.starts.get_unchecked(0) > end {
-                self.idx = usize::MAX;
-                return false;
+            if start > *self.ends.get_unchecked(idx) || *self.starts.get_unchecked(0) > end {
+                return None;
             }
         }
-        true
+        Some(idx)
     }
 
     // Iterator over indices
     // for idx in tree.search_idxs_iter(10, 20) { ... }
-    pub fn search_idxs_iter(&mut self, start: i32, end: i32) -> IndexIterator<T> {
-        if !self.setup_search(start, end) {
-            return IndexIterator {
-                tree: self,
-                current_idx: usize::MAX, // Empty iterator
-                query_start: start,
-            };
-        }
+    pub fn search_idxs_iter(&self, start: i32, end: i32) -> IndexIterator<T> {
+        let current_idx = self.setup_search(start, end).unwrap_or(usize::MAX);
         IndexIterator {
             tree: self,
-            current_idx: self.idx,
+            current_idx,
             query_start: start,
         }
     }
 
     // Iterator over intervals
-    pub fn search_items_iter(&mut self, start: i32, end: i32) -> ItemIterator<T> {
-        if !self.setup_search(start, end) {
-            return ItemIterator {
-                tree: self,
-                current_idx: usize::MAX, // Empty iterator
-                query_start: start,
-            };
-        }
+    pub fn search_items_iter(&self, start: i32, end: i32) -> ItemIterator<T> {
+        let current_idx = self.setup_search(start, end).unwrap_or(usize::MAX);
         ItemIterator {
             tree: self,
-            current_idx: self.idx,
+            current_idx,
             query_start: start,
         }
     }
@@ -264,8 +248,7 @@ impl<T: Clone> IntervalMap<T>
 //         if self.starts.is_empty() {
 //             return;
 //         }
-//         self.upper_bound(end);
-//         let mut i = self.idx;
+//         let mut i = self.upper_bound(end);
 //
 //         unsafe {
 //             while i != usize::MAX {
@@ -286,29 +269,29 @@ impl<T: Clone> IntervalMap<T>
     /// * `start` - The start of the range to check for overlaps.
     /// * `end` - The end of the range to check for overlaps.
     /// * `found` - A mutable vector to store the overlapping intervals' data.
-    pub fn search_values(&mut self, start: i32, end: i32, found: &mut Vec<T>) {
+    pub fn search_values(&self, start: i32, end: i32, found: &mut Vec<T>) {
         if self.starts.is_empty() {
             return;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return;
         }
-        let mut i = self.idx;
+        let mut i = idx;
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 i = i.wrapping_sub(1);
             }
             if i == usize::MAX {
-                found.reserve(self.idx + 1);
-                found.extend((0..=self.idx).rev().map(|j| {
+                found.reserve(idx + 1);
+                found.extend((0..=idx).rev().map(|j| {
                         self.data.get_unchecked(j).clone()
                     }));
                 return;
             }
-            let count = self.idx - i;
+            let count = idx - i;
             found.reserve(count);
-            found.extend(((i + 1)..=self.idx).rev().map(|j| {
+            found.extend(((i + 1)..=idx).rev().map(|j| {
                     self.data.get_unchecked(j).clone()
                 }));
             i = *self.branch.get_unchecked(i);
@@ -332,28 +315,28 @@ impl<T: Clone> IntervalMap<T>
     /// * `start` - The start of the range to check for overlaps.
     /// * `end` - The end of the range to check for overlaps.
     /// * `found` - A mutable vector to store the overlapping intervals' data.
-    pub fn search_values_large(&mut self, start: i32, end: i32, found: &mut Vec<T>) {
+    pub fn search_values_large(&self, start: i32, end: i32, found: &mut Vec<T>) {
         if self.starts.is_empty() {
             return;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return;
         }
-        let mut i = self.upper_bound_range(start, self.idx);
+        let mut i = self.upper_bound_range(start, idx);
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 i = i.wrapping_sub(1);
             }
             if i == usize::MAX {
-                found.reserve(self.idx + 1);
-                found.extend((0..=self.idx).rev().map(|j| {
+                found.reserve(idx + 1);
+                found.extend((0..=idx).rev().map(|j| {
                         self.data.get_unchecked(j).clone()
                     }));
                 return;
             }
-            found.reserve(self.idx - i);
-            found.extend(((i + 1)..=self.idx).rev().map(|j| {
+            found.reserve(idx - i);
+            found.extend(((i + 1)..=idx).rev().map(|j| {
                     self.data.get_unchecked(j).clone()
                 }));
             i = *self.branch.get_unchecked(i);
@@ -378,24 +361,24 @@ impl<T: Clone> IntervalMap<T>
     /// # Returns
     ///
     /// The number of overlapping intervals.
-    pub fn count_linear(&mut self, start: i32, end: i32) -> usize {
+    pub fn count_linear(&self, start: i32, end: i32) -> usize {
         if self.starts.is_empty() {
             return 0;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return 0;
         }
-        let mut i = self.idx;
+        let mut i = idx;
         let mut count: usize = 0;
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 i = i.wrapping_sub(1);
             }
             if i == usize::MAX {
-                return self.idx + 1;
+                return idx + 1;
             }
-            count += self.idx - i;
+            count += idx - i;
             i = *self.branch.get_unchecked(i);
             while i != usize::MAX {
                 if start <= *self.ends.get_unchecked(i) {
@@ -419,46 +402,58 @@ impl<T: Clone> IntervalMap<T>
     /// # Returns
     ///
     /// The number of overlapping intervals.
-    pub fn count(&mut self, start: i32, end: i32) -> usize {
+    /// Counts the number of intervals that overlap with the given range.
+    pub fn count(&self, start: i32, end: i32) -> usize {
         if self.starts.is_empty() {
             return 0;
         }
-        self.upper_bound(end);
-        let mut found: usize = 0;
-        let mut i = self.idx;
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
+            return 0;
+        }
+        let mut i = idx;
+        let mut found = 0;
+
         unsafe {
             #[cfg(target_arch = "x86_64")]
             {
                 use std::arch::x86_64::*;
                 let start_vec = _mm256_set1_epi32(start);
-                let ones: __m256i = _mm256_set1_epi32(1);
-                const SIMD_WIDTH: usize = 8;
-                const BLOCK: usize = 32;
+                const SIMD_WIDTH: usize = 8; // 256 bits / 32 bits = 8 elements
+                const BLOCK: usize = SIMD_WIDTH * 4; // 32 elements per block
+
                 while i > 0 {
                     if start <= *self.ends.get_unchecked(i) {
                         found += 1;
                         i -= 1;
+
+                        // Process blocks of data with SIMD
                         while i > BLOCK {
                             let mut count = 0;
-                            let mut last_count = 0;
-                            for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
-                                let ends_vec = _mm256_loadu_si256(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const __m256i);
-                                // Add one to convert the greater than to greater or equal than
-                                let adj_ends_vec = _mm256_add_epi32(ends_vec, ones);
-                                let cmp_mask = _mm256_cmpgt_epi32(adj_ends_vec, start_vec);
+                            let mut j = i;
+
+                            // Process SIMD_WIDTH elements at a time
+                            while j > i - BLOCK {
+                                let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
+                                let ends_vec = _mm256_loadu_si256(self.ends.as_ptr().add(end_idx) as *const __m256i);
+                                let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
                                 let mask = _mm256_movemask_epi8(cmp_mask);
-                                last_count = mask.count_ones() as usize;
-                                count += last_count;
+                                // Count the number of set bits, each comparison result is 4 bits
+                                count += (!mask).count_ones() as usize / 4;
+                                j = j.saturating_sub(SIMD_WIDTH);
                             }
-                            found += count / 4;  // Each comparison result is 4 bits
+
+                            found += count;
                             i -= BLOCK;
-                            if last_count == 0 {
+
+                            // Early exit if we didn't find full block worth of matches
+                            if count < BLOCK && start > *self.ends.get_unchecked(i + 1) {
                                 break;
                             }
                         }
                     } else {
-                        if *self.branch.get_unchecked(i) >= i {
-                            break;
+                        if *self.branch.get_unchecked(i) == usize::MAX {
+                            return found;
                         }
                         i = *self.branch.get_unchecked(i);
                     }
@@ -469,8 +464,8 @@ impl<T: Clone> IntervalMap<T>
             {
                 use std::arch::aarch64::*;
                 let start_vec = vdupq_n_s32(start);
-                const SIMD_WIDTH: usize = 4;
-                const BLOCK: usize = 32;
+                const SIMD_WIDTH: usize = 4; // 128 bits / 32 bits = 4 elements
+                const BLOCK: usize = SIMD_WIDTH * 4; // 16 elements per block
                 let ones = vdupq_n_u32(1);
                 while i > 0 {
                     if start <= *self.ends.get_unchecked(i) {
@@ -478,23 +473,24 @@ impl<T: Clone> IntervalMap<T>
                         i -= 1;
                         while i > BLOCK {
                             let mut count = 0;
-                            let mut last_count = 0;
-                            for j in (i - BLOCK + 1..=i).rev().step_by(SIMD_WIDTH) {
-                                let ends_vec = vld1q_s32(self.ends.as_ptr().add(j - SIMD_WIDTH + 1) as *const i32);
+                            let mut j = i;
+                            while j > i - BLOCK {
+                                let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
+                                let ends_vec = vld1q_s32(self.ends.as_ptr().add(end_idx) as *const i32);
                                 let mask = vcleq_s32(start_vec, ends_vec);
                                 let bool_mask = vandq_u32(mask, ones);
-                                last_count = vaddvq_u32(bool_mask) as usize;
-                                count += last_count;
+                                count += vaddvq_u32(bool_mask) as usize;
+                                j = j.saturating_sub(SIMD_WIDTH);
                             }
                             found += count;
                             i -= BLOCK;
-                            if last_count == 0 {
+                            if count < BLOCK {
                                 break;
                             }
                         }
                     } else {
-                        if *self.branch.get_unchecked(i) >= i {
-                            break;
+                        if *self.branch.get_unchecked(i) == usize::MAX {
+                            return found;
                         }
                         i = *self.branch.get_unchecked(i);
                     }
@@ -503,30 +499,39 @@ impl<T: Clone> IntervalMap<T>
 
             #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
             {
-                while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
-                    i = i.wrapping_sub(1);
-                }
-                if i == usize::MAX {
-                    return self.idx + 1;
-                }
-                found += self.idx - i;
-                i = *self.branch.get_unchecked(i);
-                while i != usize::MAX {
+                const BLOCK: usize = 16;
+
+                while i > 0 {
                     if start <= *self.ends.get_unchecked(i) {
                         found += 1;
-                        i = i.wrapping_sub(1);
+                        i -= 1;
+                        while i > BLOCK {
+                            let mut count = 0;
+                            for j in (i - BLOCK + 1..=i).rev() {
+                                if start <= *self.ends.get_unchecked(j) {
+                                    count += 1;
+                                }
+                            }
+                            found += count;
+                            i -= BLOCK;
+                            if count < BLOCK && start > *self.ends.get_unchecked(i + 1) {
+                                break;
+                            }
+                        }
                     } else {
+                        if *self.branch.get_unchecked(i) == usize::MAX {
+                            return found;
+                        }
                         i = *self.branch.get_unchecked(i);
                     }
                 }
-                return found;
             }
-
-            // Last check for 0
+            // Final check for element at index 0
             if i == 0 && start <= *self.ends.get_unchecked(0) && *self.starts.get_unchecked(0) <= end {
                 found += 1;
             }
         }
+
         found
     }
 
@@ -542,24 +547,24 @@ impl<T: Clone> IntervalMap<T>
     /// # Returns
     ///
     /// The number of overlapping intervals.
-    pub fn count_large(&mut self, start: i32, end: i32) -> usize {
+    pub fn count_large(&self, start: i32, end: i32) -> usize {
         if self.starts.is_empty() {
             return 0;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return 0;
         }
-        let mut i = self.upper_bound_range(start, self.idx);
+        let mut i = self.upper_bound_range(start, idx);
         let mut count: usize = 0;
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 i = i.wrapping_sub(1);
             }
             if i == usize::MAX {
-                return self.idx + 1;
+                return idx + 1;
             }
-            count += self.idx - i;
+            count += idx - i;
             i = *self.branch.get_unchecked(i);
             while i != usize::MAX {
                 if start <= *self.ends.get_unchecked(i) {
@@ -573,24 +578,24 @@ impl<T: Clone> IntervalMap<T>
         count
     }
 
-    pub fn search_idxs(&mut self, start: i32, end: i32, found: &mut Vec<usize>) {
+    pub fn search_idxs(&self, start: i32, end: i32, found: &mut Vec<usize>) {
         if self.starts.is_empty() {
             return;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return;
         }
-        let mut i = self.idx;
+        let mut i = idx;
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 i = i.wrapping_sub(1);
             }
             if i == usize::MAX {
-                found.extend((0..=self.idx).rev());
+                found.extend((0..=idx).rev());
                 return;
             }
-            found.extend(((i + 1)..=self.idx).rev());
+            found.extend(((i + 1)..=idx).rev());
             i = *self.branch.get_unchecked(i);
             while i != usize::MAX {
                 if start <= *self.ends.get_unchecked(i) {
@@ -603,15 +608,15 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
-    pub fn search_keys(&mut self, start: i32, end: i32, found: &mut Vec<(i32, i32)>) {
+    pub fn search_keys(&self, start: i32, end: i32, found: &mut Vec<(i32, i32)>) {
         if self.starts.is_empty() {
             return;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return;
         }
-        let mut i = self.idx;
+        let mut i = idx;
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 found.push((*self.starts.get_unchecked(i), *self.ends.get_unchecked(i)));
@@ -631,15 +636,15 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
-    pub fn search_items(&mut self, start: i32, end: i32, found: &mut Vec<Interval<T>>) {
+    pub fn search_items(&self, start: i32, end: i32, found: &mut Vec<Interval<T>>) {
         if self.starts.is_empty() {
             return;
         }
-        self.upper_bound(end);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(end);
+        if idx == usize::MAX {
             return;
         }
-        let mut i = self.idx;
+        let mut i = idx;
         unsafe {
             while i != usize::MAX && start <= *self.ends.get_unchecked(i) {
                 found.push(Interval {
@@ -667,15 +672,15 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
-    pub fn search_stabbed(&mut self, point: i32, found: &mut Vec<T>) {
+    pub fn search_stabbed(&self, point: i32, found: &mut Vec<T>) {
         if self.starts.is_empty() {
             return;
         }
-        self.upper_bound(point);
-        if self.idx == usize::MAX {
+        let idx = self.upper_bound(point);
+        if idx == usize::MAX {
             return;
         }
-        let mut i = self.idx;
+        let mut i = idx;
         unsafe {
             while i != usize::MAX && point <= *self.ends.get_unchecked(i) {
                 found.push(self.data.get_unchecked(i).clone());
@@ -705,12 +710,11 @@ impl<T: Clone> IntervalMap<T>
     /// # Returns
     ///
     /// The number of overlapping intervals, plus the coverage.
-    pub fn coverage(&mut self, start: i32, end: i32) -> (usize, i32) {
+    pub fn coverage(&self, start: i32, end: i32) -> (usize, i32) {
         if self.starts.is_empty() {
             return (0, 0);
         }
-        self.upper_bound(end);
-        let mut i = self.idx;
+        let mut i = self.upper_bound(end);
         let mut count: usize = 0;
         let mut coverage: i32 = 0;
         unsafe {

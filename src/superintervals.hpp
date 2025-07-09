@@ -1,4 +1,4 @@
-
+// Version 0.3.1
 #pragma once
 
 #include <algorithm>
@@ -49,17 +49,16 @@ class IntervalMap {
     std::vector<S> ends;
     std::vector<size_t> branch;
     std::vector<T> data;
-    mutable size_t idx;
     bool start_sorted, end_sorted;
 
-    IntervalMap() : idx(0), start_sorted(true), end_sorted(true), it_low(0), it_high(0) {}
+    IntervalMap() : start_sorted(true), end_sorted(true) {}
     virtual ~IntervalMap() = default;
 
     /**
      * @brief Clears all intervals and resets the data structure
      */
     void clear() noexcept {
-        data.clear(); starts.clear(); ends.clear(); branch.clear(); idx = 0;
+        data.clear(); starts.clear(); ends.clear(); branch.clear(); // idx = 0;
     }
 
     /**
@@ -119,7 +118,6 @@ class IntervalMap {
             }
             br.emplace_back() = {ends[i], i};
         }
-        idx = 0;
     }
 
     /**
@@ -144,11 +142,13 @@ class IntervalMap {
     // Iterator interfaces
     class IndexIterator {
     public:
-        IndexIterator(const IntervalMap* parent, size_t pos) : parent_(parent), pos_(pos) {}
+        IndexIterator(const IntervalMap* parent, size_t pos, S query_start)
+            : parent_(parent), pos_(pos), query_start_(query_start) {}
+
         size_t operator*() const { return pos_; }
         IndexIterator& operator++() {
             if (pos_ != SIZE_MAX) {
-                if (parent_->it_low <= parent_->ends[pos_]) {
+                if (query_start_ <= parent_->ends[pos_]) {
                     --pos_;
                 } else {
                     pos_ = parent_->branch[pos_];
@@ -164,11 +164,13 @@ class IntervalMap {
         }
         const IntervalMap* parent_;
         size_t pos_;
+        S query_start_;
     };
 
     class ItemIterator {
     public:
-        ItemIterator(const IntervalMap* parent, size_t pos) : index_iter_(parent, pos) {}
+        ItemIterator(const IntervalMap* parent, size_t pos, S query_start)
+            : index_iter_(parent, pos, query_start) {}
         Interval<S, T> operator*() const {
             size_t i = *index_iter_;
             return Interval<S, T>{
@@ -192,28 +194,38 @@ class IntervalMap {
 
     class IndexRange {
     public:
-        IndexRange(const IntervalMap* parent, S start, S end) : parent_(parent), start_(start), end_(end) {}
+        IndexRange(const IntervalMap* parent, S start, S end)
+            : parent_(parent), start_(start), end_(end) {}
         IndexIterator begin() const {
-            parent_->search(start_, end_);
-            return IndexIterator(parent_, parent_->idx);
+            size_t idx = parent_->upper_bound(end_);
+            if (idx != SIZE_MAX && (start_ > parent_->ends[idx] || parent_->starts[0] > end_)) {
+                idx = SIZE_MAX;
+            }
+            return IndexIterator(parent_, idx, start_);
         }
         IndexIterator end() const {
-            return IndexIterator(parent_, SIZE_MAX);
+            return IndexIterator(parent_, SIZE_MAX, start_);
         }
+    private:
         const IntervalMap* parent_;
         S start_, end_;
     };
 
     class ItemRange {
     public:
-        ItemRange(const IntervalMap* parent, S start, S end) : parent_(parent), start_(start), end_(end) {}
+        ItemRange(const IntervalMap* parent, S start, S end)
+            : parent_(parent), start_(start), end_(end) {}
         ItemIterator begin() const {
-            parent_->search(start_, end_);
-            return ItemIterator(parent_, parent_->idx);
+            size_t idx = parent_->upper_bound(end_);
+            if (idx != SIZE_MAX && (start_ > parent_->ends[idx] || parent_->starts[0] > end_)) {
+                idx = SIZE_MAX;
+            }
+            return ItemIterator(parent_, idx, start_);
         }
         ItemIterator end() const {
-            return ItemIterator(parent_, SIZE_MAX);
+            return ItemIterator(parent_, SIZE_MAX, start_);
         }
+    private:
         const IntervalMap* parent_;
         S start_, end_;
     };
@@ -243,9 +255,9 @@ class IntervalMap {
      * @param value The upper bound value to search for.
      * @note After calling this, idx will be set to that index (or SIZE_MAX if none).
      */
-    virtual inline void upper_bound(const S value) const noexcept {
+    virtual inline size_t upper_bound(const S value) const noexcept {
         size_t length = starts.size();
-        idx = 0;
+        size_t idx = 0;
         while (length > 1) {
             size_t half = length / 2;
             idx += (starts[idx + half] <= value) * (length - half);
@@ -254,6 +266,7 @@ class IntervalMap {
         if (starts[idx] > value) {
             --idx;  // Might underflow to SIZE_MAX
         }
+        return idx;
 
 //        idx = std::distance(starts.begin(),
 //            std::upper_bound(starts.begin(), starts.end(), value)) - 1;
@@ -265,7 +278,7 @@ class IntervalMap {
      * @param left  On entry, the lower end of the search range; on exit, the found index or SIZE_MAX.
      * @param right The upper end of the search range (exclusive).
      */
-    inline void upper_bound_range(const S value, size_t& left, const size_t right) noexcept {
+    inline void upper_bound_range(const S value, size_t& left, const size_t right) const noexcept {
         // First do exponential search if we have room
         size_t search_right = right;
         size_t bound = 1;
@@ -293,11 +306,11 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @param found Output vector that will be filled with matching data values.
      */
-    void search_values(const S start, const S end, std::vector<T>& found) {
+    void search_values(const S start, const S end, std::vector<T>& found) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -328,11 +341,11 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @param found Output vector that will be filled with matching data values.
      */
-    void search_values_large(const S start, const S end, std::vector<T>& found) {
+    void search_values_large(const S start, const S end, std::vector<T>& found) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -363,11 +376,11 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @return Number of intervals overlapping the query.
      */
-    size_t count_linear(const S start, const S end) noexcept {
+    size_t count_linear(const S start, const S end) const noexcept {
         if (starts.empty()) {
             return 0;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return 0;
         }
@@ -391,12 +404,11 @@ class IntervalMap {
         return count;
     }
 
-    size_t count(const S start, const S end) noexcept {
+    size_t count(const S start, const S end) const noexcept {
         if (starts.empty()) {
             return 0;
         }
-        upper_bound(end);
-        size_t i = idx;
+        size_t i = upper_bound(end);
         if (i == SIZE_MAX) {
             return 0;
         }
@@ -436,7 +448,7 @@ class IntervalMap {
                 while (i > block) {
                     size_t count = 0;
                     for (size_t j = i; j > i - block; j -= simd_width) {
-                        __m256i ends_vec = _mm256_load_si256((__m256i*)(&ends[j - simd_width + 1]));
+                        __m256i ends_vec = _mm256_loadu_si256((__m256i*)(&ends[j - simd_width + 1]));
                         __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
                         int mask = _mm256_movemask_epi8(~cmp_mask);
                         count += _mm_popcnt_u32(mask);
@@ -485,11 +497,11 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @return Number of intervals overlapping the query.
      */
-    size_t count_large(const S start, const S end) noexcept {
+    size_t count_large(const S start, const S end) const noexcept {
         if (starts.empty()) {
             return 0;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return 0;
         }
@@ -516,11 +528,11 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @return true if at least one overlap exists, false otherwise.
      */
-    bool has_overlaps(const S start, const S end) noexcept {
+    bool has_overlaps(const S start, const S end) const noexcept {
         if (starts.empty()) {
             return false;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
         return idx != SIZE_MAX && start <= ends[idx];
     }
 
@@ -530,15 +542,15 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @param found Output vector that will be filled with matching interval indices.
      */
-    void search_idxs(const S start, const S end, std::vector<size_t>& found) {
+    void search_idxs(const S start, const S end, std::vector<size_t>& found) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(end);
-        size_t i = idx;
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
+        size_t i = idx;
         while (i != SIZE_MAX && start <= ends[i]) {
             --i;
         }
@@ -564,11 +576,11 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @param found Output vector that will be filled with matching interval key pairs.
      */
-    void search_keys(const S start, const S end, std::vector<std::pair<S, S>>& found) {
+    void search_keys(const S start, const S end, std::vector<std::pair<S, S>>& found) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -577,7 +589,7 @@ class IntervalMap {
             found.emplace_back() = {starts[i], ends[i]};
             --i;
         }
-        if (idx == SIZE_MAX) {
+        if (i == SIZE_MAX) {
             return;
         }
         i = branch[i];
@@ -597,17 +609,20 @@ class IntervalMap {
      * @param end   The end of the query interval.
      * @param found Output vector that will be filled with matching Interval instances.
      */
-    void search_items(const S start, const S end, std::vector<Interval<S, T>>& found) {
+    void search_items(const S start, const S end, std::vector<Interval<S, T>>& found) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(end);
+        size_t idx = upper_bound(end);
+        if (idx == SIZE_MAX) {
+            return;
+        }
         size_t i = idx;
         while (i != SIZE_MAX && start <= ends[i]) {
             found.emplace_back() = {starts[i], ends[i], data[i]};
             --i;
         }
-        if (idx == SIZE_MAX) {
+        if (i == SIZE_MAX) {
             return;
         }
         i = branch[i];
@@ -627,15 +642,15 @@ class IntervalMap {
      * @param end        The end of the query interval.
      * @param cov_result Pair where first = count of overlaps, second = sum of overlapping lengths.
      */
-    void coverage(const S start, const S end, std::pair<size_t, S> &cov_result) {
+    void coverage(const S start, const S end, std::pair<size_t, S> &cov_result) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(end);
-        if (idx == SIZE_MAX) {
+        size_t i = upper_bound(end);
+        if (i == SIZE_MAX) {
             return;
         }
-        size_t i = idx;
+//        size_t i = idx;
         while (i != SIZE_MAX && start <= ends[i]) {
             ++cov_result.first;
             cov_result.second += std::min(ends[i], end) - std::max(starts[i], start);
@@ -661,12 +676,12 @@ class IntervalMap {
      * @param point The point to test.
      * @param found Output vector that will be filled with data values of intervals containing point.
      */
-    void search_point(const S point, std::vector<T>& found) {
+    void search_point(const S point, std::vector<T>& found) const {
         if (starts.empty()) {
             return;
         }
-        upper_bound(point);
-        size_t i = idx;
+        size_t i = upper_bound(point);
+//        size_t i = idx;
         while (i != SIZE_MAX && point <= ends[i]) {
             found.push_back(data[i]);
             --i;
@@ -684,24 +699,7 @@ class IntervalMap {
 
     protected:
 
-    mutable S it_low, it_high;
     std::vector<Interval<S, T>> tmp;
-
-    /**
-     * @brief Sets the search interval. Used internally by range objects.
-     * @param start Start point of the search range
-     * @param end End point of the search range
-     */
-    void search(const S start, const S end) const noexcept {
-        if (starts.empty()) {
-            return;
-        }
-        it_low = start; it_high = end;
-        upper_bound(end);
-        if (idx != SIZE_MAX && (start > ends[idx] || starts[0] > end)) {
-            idx = SIZE_MAX;
-        }
-    }
 
     template<typename CompareFunc>
     void sort_block(size_t start_i, size_t end_i, CompareFunc compare) {
@@ -797,7 +795,7 @@ public:
             }
             br.emplace_back() = {this->ends[i], i};
         }
-        this->idx = 0;
+//        this->idx = 0;
     }
 
     /**
@@ -805,7 +803,7 @@ public:
      * @param x The search value.
      * @note Overrides the base upper_bound to navigate the implicit binary tree.
      */
-    inline void upper_bound(const S x) noexcept override {
+    inline size_t upper_bound(const S x) const noexcept override {
          size_t i = 0;
          const size_t n_intervals = this->starts.size();
          while (i < n_intervals) {
@@ -817,10 +815,11 @@ public:
          }
          int shift = __builtin_ffs(~(i + 1));
          size_t best_idx = (i >> shift) - ((shift > 1) ? 1 : 0);
-         this->idx = (best_idx < n_intervals) ? eytz_index[best_idx] : n_intervals - 1;
-         if (this->idx > 0 && this->starts[this->idx] > x) {
-             --this->idx;
+         i = (best_idx < n_intervals) ? eytz_index[best_idx] : n_intervals - 1;
+         if (i > 0 && this->starts[i] > x) {
+             --i;
          }
+         return i;
     }
 
 private:
