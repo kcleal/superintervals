@@ -16,11 +16,13 @@ enabling cache-friendly searches and SIMD-optimized counting operations.
 
 ## Installation
 
-Build and install:
+Install using:
 ```r
-bash ./build.sh
+remotes::install_github("kcleal/superintervalsr")
+```
 
-# Run a small benchmark vs IRanges
+Run a small benchmark vs IRanges:
+```
 Rscript benchmark.R
 ```
 
