@@ -100,3 +100,6 @@ cdef class IntervalMap:
     cpdef search_keys(self, int start, int end)
     cpdef search_items(self, int start, int end)
     cpdef coverage(self, int start, int end)
+    cpdef count_batch(self, int[:] starts, int[:] ends)
+    cpdef search_idxs_batch(self, int[:] starts, int[:] ends)
+    cpdef search_values_batch(self, int[:] starts, int[:] ends)
