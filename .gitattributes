@@ -1,0 +1,10 @@
+*.py linguist-detectable=true
+*.rs linguist-detectable=true
+*.cpp linguist-detectable=true
+*.cc linguist-detectable=true
+*.h linguist-detectable=true
+*.hpp linguist-detectable=true
+
+test/* linguist-detectable=false
+examples/* linguist-detectable=false
+*.md linguist-detectable=false

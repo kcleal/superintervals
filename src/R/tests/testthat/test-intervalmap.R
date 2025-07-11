@@ -212,3 +212,268 @@ test_that("Print method works", {
   empty_imap <- IntervalMap()
   expect_output(print(empty_imap), "IntervalMap with 0 intervals")
 })
+
+
+test_that("IntervalMap.from_vectors works with all parameters", {
+  # Test with starts, ends, and values
+  starts <- c(1, 10, 20)
+  ends <- c(5, 15, 25)
+  values <- c("A", "B", "C")
+
+  imap <- IntervalMap.from_vectors(starts, ends, values)
+  expect_s3_class(imap, "IntervalMap")
+  expect_equal(length(imap), 3)
+
+  # Test accessing intervals
+  interval1 <- at(imap, 1)
+  expect_equal(interval1$start, 1)
+  expect_equal(interval1$end, 5)
+  expect_equal(interval1$value, "A")
+
+  interval2 <- at(imap, 2)
+  expect_equal(interval2$start, 10)
+  expect_equal(interval2$end, 15)
+  expect_equal(interval2$value, "B")
+
+  interval3 <- at(imap, 3)
+  expect_equal(interval3$start, 20)
+  expect_equal(interval3$end, 25)
+  expect_equal(interval3$value, "C")
+})
+
+test_that("IntervalMap.from_vectors works without values", {
+  # Test with just starts and ends (no values)
+  starts <- c(1, 10, 20)
+  ends <- c(5, 15, 25)
+
+  imap <- IntervalMap.from_vectors(starts, ends)
+  expect_s3_class(imap, "IntervalMap")
+  expect_equal(length(imap), 3)
+
+  # Test that values are NULL
+  interval1 <- at(imap, 1)
+  expect_equal(interval1$start, 1)
+  expect_equal(interval1$end, 5)
+  expect_null(interval1$value)
+
+  interval2 <- at(imap, 2)
+  expect_equal(interval2$start, 10)
+  expect_equal(interval2$end, 15)
+  expect_null(interval2$value)
+})
+
+test_that("IntervalMap.from_vectors works with complex values", {
+  # Test with complex data types as values
+  starts <- c(1, 10)
+  ends <- c(5, 15)
+  values <- list(
+    list(name = "gene1", score = 0.95),
+    data.frame(id = 1:2, name = c("A", "B"))
+  )
+
+  imap <- IntervalMap.from_vectors(starts, ends, values)
+  expect_equal(length(imap), 2)
+
+  interval1 <- at(imap, 1)
+  expect_equal(interval1$value$name, "gene1")
+  expect_equal(interval1$value$score, 0.95)
+
+  interval2 <- at(imap, 2)
+  expect_s3_class(interval2$value, "data.frame")
+  expect_equal(nrow(interval2$value), 2)
+})
+
+test_that("IntervalMap.from_vectors handles empty inputs", {
+  # Test with empty vectors
+  imap <- IntervalMap.from_vectors(integer(0), integer(0))
+  expect_s3_class(imap, "IntervalMap")
+  expect_equal(length(imap), 0)
+
+  # Test with empty vectors but with values parameter
+  imap2 <- IntervalMap.from_vectors(integer(0), integer(0), list())
+  expect_s3_class(imap2, "IntervalMap")
+  expect_equal(length(imap2), 0)
+})
+
+test_that("count.batch works correctly", {
+  # Create test IntervalMap
+  imap <- IntervalMap()
+  add(imap, 1, 10, "A")
+  add(imap, 5, 15, "B")
+  add(imap, 20, 30, "C")
+  add(imap, 25, 35, "D")
+  build(imap)
+
+  # Test batch counting
+  query_starts <- c(1, 8, 16, 27)
+  query_ends <- c(5, 12, 19, 32)
+
+  counts <- count.batch(imap, query_starts, query_ends)
+  expect_equal(length(counts), 4)
+  expect_equal(counts[1], 2)  # overlaps with A and B
+  expect_equal(counts[2], 2)  # overlaps with A and B
+  expect_equal(counts[3], 0)  # no overlaps
+  expect_equal(counts[4], 2)  # overlaps with C and D
+})
+
+test_that("count.batch handles edge cases", {
+  imap <- IntervalMap()
+  add(imap, 1, 10, "A")
+  build(imap)
+
+  # Test with empty query vectors
+  counts <- count.batch(imap, integer(0), integer(0))
+  expect_equal(length(counts), 0)
+
+  # Test with single query
+  counts <- count.batch(imap, 5, 8)
+  expect_equal(length(counts), 1)
+  expect_equal(counts[1], 1)
+
+  # Test with queries that don't overlap
+  counts <- count.batch(imap, c(15, 20), c(18, 25))
+  expect_equal(length(counts), 2)
+  expect_equal(counts[1], 0)
+  expect_equal(counts[2], 0)
+})
+
+test_that("search_idxs.batch works correctly", {
+  # Create test IntervalMap
+  imap <- IntervalMap()
+  add(imap, 1, 10, "A")
+  add(imap, 5, 15, "B")
+  add(imap, 20, 30, "C")
+  add(imap, 25, 35, "D")
+  build(imap)
+
+  # Test batch index searching
+  query_starts <- c(1, 8, 16, 27)
+  query_ends <- c(5, 12, 19, 32)
+
+  result <- search_idxs.batch(imap, query_starts, query_ends)
+  expect_true(is.list(result))
+  expect_equal(length(result), 4)
+
+  # Check first query (should find intervals 1 and 2)
+  expect_equal(length(result[[1]]), 2)
+  expect_true(1 %in% result[[1]])
+  expect_true(2 %in% result[[1]])
+
+  # Check second query (should find intervals 1 and 2)
+  expect_equal(length(result[[2]]), 2)
+  expect_true(1 %in% result[[2]])
+  expect_true(2 %in% result[[2]])
+
+  # Check third query (should find no intervals)
+  expect_equal(length(result[[3]]), 0)
+
+  # Check fourth query (should find intervals 3 and 4)
+  expect_equal(length(result[[4]]), 2)
+  expect_true(3 %in% result[[4]])
+  expect_true(4 %in% result[[4]])
+})
+
+test_that("search_idxs.batch handles edge cases", {
+  imap <- IntervalMap()
+  add(imap, 1, 10, "A")
+  build(imap)
+
+  # Test with empty query vectors
+  result <- search_idxs.batch(imap, integer(0), integer(0))
+  expect_true(is.list(result))
+  expect_equal(length(result), 0)
+
+  # Test with single query
+  result <- search_idxs.batch(imap, 5, 8)
+  expect_true(is.list(result))
+  expect_equal(length(result), 1)
+  expect_equal(length(result[[1]]), 1)
+  expect_equal(result[[1]][1], 1)
+})
+
+test_that("Batch functions work with large datasets", {
+  # Create a larger test dataset
+  n_intervals <- 100
+  starts <- seq(1, 1000, length.out = n_intervals)
+  ends <- starts + 50
+  values <- paste0("interval_", 1:n_intervals)
+
+  imap <- IntervalMap.from_vectors(as.integer(starts), as.integer(ends), values)
+  expect_equal(length(imap), n_intervals)
+
+  # Test batch operations on larger dataset
+  n_queries <- 20
+  query_starts <- seq(10, 900, length.out = n_queries)
+  query_ends <- query_starts + 30
+
+  # Test count.batch
+  counts <- count.batch(imap, as.integer(query_starts), as.integer(query_ends))
+  expect_equal(length(counts), n_queries)
+  expect_true(all(counts >= 0))
+
+  # Test search_idxs.batch
+  result <- search_idxs.batch(imap, as.integer(query_starts), as.integer(query_ends))
+  expect_equal(length(result), n_queries)
+  expect_true(is.list(result))
+
+  # Verify consistency between count.batch and search_idxs.batch
+  for (i in 1:n_queries) {
+    expect_equal(counts[i], length(result[[i]]))
+  }
+})
+
+test_that("Integration test: from_vectors with batch operations", {
+  # Create IntervalMap using from_vectors
+  starts <- c(1, 10, 20, 30, 40)
+  ends <- c(8, 18, 28, 38, 48)
+  values <- c("A", "B", "C", "D", "E")
+
+  imap <- IntervalMap.from_vectors(starts, ends, values)
+
+  # Test that it works with batch operations without needing build()
+  query_starts <- c(5, 15, 25, 35)
+  query_ends <- c(12, 22, 32, 42)
+
+  counts <- count.batch(imap, query_starts, query_ends)
+  expect_equal(length(counts), 4)
+  expect_true(all(counts > 0))  # All queries should find overlaps
+
+  idxs <- search_idxs.batch(imap, query_starts, query_ends)
+  expect_equal(length(idxs), 4)
+
+  # Verify consistency
+  for (i in 1:4) {
+    expect_equal(counts[i], length(idxs[[i]]))
+  }
+})
+
+test_that("Error handling for batch functions", {
+  imap <- IntervalMap()
+  add(imap, 1, 10, "A")
+  build(imap)
+
+  # Test mismatched vector lengths
+  expect_error(count.batch(imap, c(1, 5), c(3, 8, 12)), "length")
+  expect_error(search_idxs.batch(imap, c(1, 5), c(3, 8, 12)), "length")
+})
+
+test_that("Type conversion works correctly", {
+  # Test that the functions handle different numeric types
+  imap <- IntervalMap()
+  add(imap, 1.0, 10.0, "A")  # doubles should be converted to integers
+  add(imap, 5L, 15L, "B")    # integers should work
+  build(imap)
+
+  # Test with double inputs to batch functions
+  counts <- count.batch(imap, c(1.0, 8.0), c(5.0, 12.0))
+  expect_equal(length(counts), 2)
+  expect_equal(counts[1], 2)
+  expect_equal(counts[2], 2)
+
+  # Test from_vectors with doubles
+  imap2 <- IntervalMap.from_vectors(c(1.0, 10.0), c(5.0, 15.0), c("X", "Y"))
+  expect_equal(length(imap2), 2)
+  interval1 <- at(imap2, 1)
+  expect_equal(interval1$start, 1)
+  expect_equal(interval1$end, 5)
+})

@@ -19,14 +19,18 @@ create_test_intervals <- function(n, max_pos = 1000000, min_width = 100, max_wid
   list(starts = starts, ends = ends)
 }
 
+# create_superintervals <- function(intervals) {
+#   si <- IntervalMap()
+#   reserve(si, length(intervals$starts))
+#   for (i in seq_along(intervals$starts)) {
+#     add(si, intervals$starts[i], intervals$ends[i], i)  # Updated from add_int_value
+#   }
+#   build(si)  # Updated from index(si)
+#   return(si)
+# }
+
 create_superintervals <- function(intervals) {
-  si <- IntervalMap()
-  reserve(si, length(intervals$starts))
-  for (i in seq_along(intervals$starts)) {
-    add(si, intervals$starts[i], intervals$ends[i], i)  # Updated from add_int_value
-  }
-  build(si)  # Updated from index(si)
-  return(si)
+  IntervalMap.from_vectors(intervals$starts, intervals$ends, seq_along(intervals$starts))
 }
 
 create_iranges <- function(intervals) {
@@ -209,10 +213,9 @@ run_detailed_benchmark <- function(si, ir, intervals) {
 
     # Benchmark finding operations
     find_bench <- microbenchmark(
-      SuperIntervals = search_idxs(si, query$start, query$end),  # Changed from search_values to search_idxs
+      SuperIntervals = search_idxs(si, query$start, query$end),
       IRanges = {
         hits <- findOverlaps(query_ir, ir)
-        subjectHits(hits)
       },
       times = 5,
       unit = "milliseconds"

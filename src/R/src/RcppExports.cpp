@@ -20,6 +20,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// create_intervalmap_from_vectors
+SEXP create_intervalmap_from_vectors(IntegerVector starts, IntegerVector ends, List values);
+RcppExport SEXP _superintervalsr_create_intervalmap_from_vectors(SEXP startsSEXP, SEXP endsSEXP, SEXP valuesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< IntegerVector >::type starts(startsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ends(endsSEXP);
+    Rcpp::traits::input_parameter< List >::type values(valuesSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_intervalmap_from_vectors(starts, ends, values));
+    return rcpp_result_gen;
+END_RCPP
+}
 // add_interval
 void add_interval(SEXP container, int start, int end, SEXP value);
 RcppExport SEXP _superintervalsr_add_interval(SEXP containerSEXP, SEXP startSEXP, SEXP endSEXP, SEXP valueSEXP) {
@@ -91,6 +104,39 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// get_all_starts
+IntegerVector get_all_starts(SEXP container);
+RcppExport SEXP _superintervalsr_get_all_starts(SEXP containerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_all_starts(container));
+    return rcpp_result_gen;
+END_RCPP
+}
+// get_all_ends
+IntegerVector get_all_ends(SEXP container);
+RcppExport SEXP _superintervalsr_get_all_ends(SEXP containerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_all_ends(container));
+    return rcpp_result_gen;
+END_RCPP
+}
+// get_all_values
+List get_all_values(SEXP container);
+RcppExport SEXP _superintervalsr_get_all_values(SEXP containerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_all_values(container));
+    return rcpp_result_gen;
+END_RCPP
+}
 // clear_intervals
 void clear_intervals(SEXP container);
 RcppExport SEXP _superintervalsr_clear_intervals(SEXP containerSEXP) {
@@ -133,6 +179,19 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type start(startSEXP);
     Rcpp::traits::input_parameter< int >::type end(endSEXP);
     rcpp_result_gen = Rcpp::wrap(cpp_has_overlaps(container, start, end));
+    return rcpp_result_gen;
+END_RCPP
+}
+// has_overlaps_batch
+LogicalVector has_overlaps_batch(SEXP container, IntegerVector starts, IntegerVector ends);
+RcppExport SEXP _superintervalsr_has_overlaps_batch(SEXP containerSEXP, SEXP startsSEXP, SEXP endsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type starts(startsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ends(endsSEXP);
+    rcpp_result_gen = Rcpp::wrap(has_overlaps_batch(container, starts, ends));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -214,25 +273,72 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// search_idxs_batch
+List search_idxs_batch(SEXP container, IntegerVector starts, IntegerVector ends);
+RcppExport SEXP _superintervalsr_search_idxs_batch(SEXP containerSEXP, SEXP startsSEXP, SEXP endsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type starts(startsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ends(endsSEXP);
+    rcpp_result_gen = Rcpp::wrap(search_idxs_batch(container, starts, ends));
+    return rcpp_result_gen;
+END_RCPP
+}
+// count_batch
+IntegerVector count_batch(SEXP container, IntegerVector starts, IntegerVector ends);
+RcppExport SEXP _superintervalsr_count_batch(SEXP containerSEXP, SEXP startsSEXP, SEXP endsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type starts(startsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ends(endsSEXP);
+    rcpp_result_gen = Rcpp::wrap(count_batch(container, starts, ends));
+    return rcpp_result_gen;
+END_RCPP
+}
+// search_values_batch
+List search_values_batch(SEXP container, IntegerVector starts, IntegerVector ends);
+RcppExport SEXP _superintervalsr_search_values_batch(SEXP containerSEXP, SEXP startsSEXP, SEXP endsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type container(containerSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type starts(startsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ends(endsSEXP);
+    rcpp_result_gen = Rcpp::wrap(search_values_batch(container, starts, ends));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_superintervalsr_create_intervalmap", (DL_FUNC) &_superintervalsr_create_intervalmap, 0},
+    {"_superintervalsr_create_intervalmap_from_vectors", (DL_FUNC) &_superintervalsr_create_intervalmap_from_vectors, 3},
     {"_superintervalsr_add_interval", (DL_FUNC) &_superintervalsr_add_interval, 4},
     {"_superintervalsr_build_index", (DL_FUNC) &_superintervalsr_build_index, 1},
     {"_superintervalsr_get_interval_at", (DL_FUNC) &_superintervalsr_get_interval_at, 2},
     {"_superintervalsr_get_start_at", (DL_FUNC) &_superintervalsr_get_start_at, 2},
     {"_superintervalsr_get_end_at", (DL_FUNC) &_superintervalsr_get_end_at, 2},
     {"_superintervalsr_get_data_at", (DL_FUNC) &_superintervalsr_get_data_at, 2},
+    {"_superintervalsr_get_all_starts", (DL_FUNC) &_superintervalsr_get_all_starts, 1},
+    {"_superintervalsr_get_all_ends", (DL_FUNC) &_superintervalsr_get_all_ends, 1},
+    {"_superintervalsr_get_all_values", (DL_FUNC) &_superintervalsr_get_all_values, 1},
     {"_superintervalsr_clear_intervals", (DL_FUNC) &_superintervalsr_clear_intervals, 1},
     {"_superintervalsr_reserve_intervals", (DL_FUNC) &_superintervalsr_reserve_intervals, 2},
     {"_superintervalsr_get_size", (DL_FUNC) &_superintervalsr_get_size, 1},
     {"_superintervalsr_cpp_has_overlaps", (DL_FUNC) &_superintervalsr_cpp_has_overlaps, 3},
+    {"_superintervalsr_has_overlaps_batch", (DL_FUNC) &_superintervalsr_has_overlaps_batch, 3},
     {"_superintervalsr_count_overlaps", (DL_FUNC) &_superintervalsr_count_overlaps, 3},
     {"_superintervalsr_cpp_search_values", (DL_FUNC) &_superintervalsr_cpp_search_values, 3},
     {"_superintervalsr_search_indexes", (DL_FUNC) &_superintervalsr_search_indexes, 3},
     {"_superintervalsr_cpp_search_keys", (DL_FUNC) &_superintervalsr_cpp_search_keys, 3},
     {"_superintervalsr_cpp_search_items", (DL_FUNC) &_superintervalsr_cpp_search_items, 3},
     {"_superintervalsr_get_coverage", (DL_FUNC) &_superintervalsr_get_coverage, 3},
+    {"_superintervalsr_search_idxs_batch", (DL_FUNC) &_superintervalsr_search_idxs_batch, 3},
+    {"_superintervalsr_count_batch", (DL_FUNC) &_superintervalsr_count_batch, 3},
+    {"_superintervalsr_search_values_batch", (DL_FUNC) &_superintervalsr_search_values_batch, 3},
     {NULL, NULL, 0}
 };
 

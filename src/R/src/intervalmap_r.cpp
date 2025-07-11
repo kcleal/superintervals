@@ -46,6 +46,38 @@ SEXP create_intervalmap() {
 }
 
 // [[Rcpp::export]]
+SEXP create_intervalmap_from_vectors(IntegerVector starts, IntegerVector ends, List values) {
+    if (starts.size() != ends.size()) {
+        stop("starts and ends must have the same length");
+    }
+
+    if (values.size() != 0 && values.size() != starts.size()) {
+        stop("values must have the same length as starts and ends");
+    }
+
+    IntervalMap<int, SEXP>* ptr = new IntervalMap<int, SEXP>();
+    ptr->reserve(starts.size());
+    for (int i = 0; i < starts.size(); ++i) {
+        SEXP value = (values.size() > 0) ? values[i] : R_NilValue;
+        preserve_sexp(value);
+        ptr->add(starts[i], ends[i], value);
+    }
+    ptr->build();  // Auto-build for convenience
+
+    XPtr<IntervalMap<int, SEXP>> main_ptr(ptr, &cleanup_intervalmap);
+
+    std::vector<SEXP>* value_cache = new std::vector<SEXP>();
+    XPtr<std::vector<SEXP>> value_cache_ptr(value_cache, true);
+    main_ptr.attr("value_cache") = value_cache_ptr;
+
+    std::vector<size_t>* idx_cache = new std::vector<size_t>();
+    XPtr<std::vector<size_t>> idx_cache_ptr(idx_cache, true);
+    main_ptr.attr("idx_cache") = idx_cache_ptr;
+
+    return main_ptr;
+}
+
+// [[Rcpp::export]]
 void add_interval(SEXP container, int start, int end, SEXP value = R_NilValue) {
     XPtr<IntervalMap<int, SEXP>> si(container);
 
@@ -127,6 +159,42 @@ SEXP get_data_at(SEXP container, int r_index) {
 }
 
 // [[Rcpp::export]]
+IntegerVector get_all_starts(SEXP container) {
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    IntegerVector result(si->size());
+
+    for (size_t i = 0; i < si->size(); ++i) {
+        result[i] = si->starts[i];
+    }
+
+    return result;
+}
+
+// [[Rcpp::export]]
+IntegerVector get_all_ends(SEXP container) {
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    IntegerVector result(si->size());
+
+    for (size_t i = 0; i < si->size(); ++i) {
+        result[i] = si->ends[i];
+    }
+
+    return result;
+}
+
+// [[Rcpp::export]]
+List get_all_values(SEXP container) {
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    List result(si->size());
+
+    for (size_t i = 0; i < si->size(); ++i) {
+        result[i] = si->data[i];
+    }
+
+    return result;
+}
+
+// [[Rcpp::export]]
 void clear_intervals(SEXP container) {
     XPtr<IntervalMap<int, SEXP>> si(container);
 
@@ -154,6 +222,22 @@ int get_size(SEXP container) {
 bool cpp_has_overlaps(SEXP container, int start, int end) {
     XPtr<IntervalMap<int, SEXP>> si(container);
     return si->has_overlaps(start, end);
+}
+
+// [[Rcpp::export]]
+LogicalVector has_overlaps_batch(SEXP container, IntegerVector starts, IntegerVector ends) {
+    if (starts.size() != ends.size()) {
+        stop("starts and ends must have the same length");
+    }
+
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    LogicalVector results(starts.size());
+
+    for (int i = 0; i < starts.size(); ++i) {
+        results[i] = si->has_overlaps(starts[i], ends[i]);
+    }
+
+    return results;
 }
 
 // [[Rcpp::export]]
@@ -273,4 +357,72 @@ List get_coverage(SEXP container, int start, int end) {
         Named("count") = (int)cov_result.first,
         Named("total_coverage") = cov_result.second
     );
+}
+
+// [[Rcpp::export]]
+List search_idxs_batch(SEXP container, IntegerVector starts, IntegerVector ends) {
+    if (starts.size() != ends.size()) {
+        stop("starts and ends must have the same length");
+    }
+
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    XPtr<std::vector<size_t>> cache_ptr(si.attr("idx_cache"));
+    std::vector<size_t>& found_indices = *cache_ptr;
+
+    List results(starts.size());
+
+    for (int i = 0; i < starts.size(); ++i) {
+        found_indices.clear();
+        si->search_idxs(starts[i], ends[i], found_indices);
+
+        IntegerVector result(found_indices.size());
+        for (size_t j = 0; j < found_indices.size(); ++j) {
+            result[j] = found_indices[j] + 1;  // Convert to 1-based
+        }
+        results[i] = result;
+    }
+
+    return results;
+}
+
+// [[Rcpp::export]]
+IntegerVector count_batch(SEXP container, IntegerVector starts, IntegerVector ends) {
+    if (starts.size() != ends.size()) {
+        stop("starts and ends must have the same length");
+    }
+
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    IntegerVector results(starts.size());
+
+    for (int i = 0; i < starts.size(); ++i) {
+        results[i] = si->count(starts[i], ends[i]);
+    }
+
+    return results;
+}
+
+// [[Rcpp::export]]
+List search_values_batch(SEXP container, IntegerVector starts, IntegerVector ends) {
+    if (starts.size() != ends.size()) {
+        stop("starts and ends must have the same length");
+    }
+
+    XPtr<IntervalMap<int, SEXP>> si(container);
+    XPtr<std::vector<SEXP>> cache_ptr(si.attr("value_cache"));
+    std::vector<SEXP>& found_values = *cache_ptr;
+
+    List results(starts.size());
+
+    for (int i = 0; i < starts.size(); ++i) {
+        found_values.clear();
+        si->search_values(starts[i], ends[i], found_values);
+
+        List result(found_values.size());
+        for (size_t j = 0; j < found_values.size(); ++j) {
+            result[j] = found_values[j];
+        }
+        results[i] = result;
+    }
+
+    return results;
 }

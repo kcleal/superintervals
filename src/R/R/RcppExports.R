@@ -5,6 +5,10 @@ create_intervalmap <- function() {
     .Call(`_superintervalsr_create_intervalmap`)
 }
 
+create_intervalmap_from_vectors <- function(starts, ends, values) {
+    .Call(`_superintervalsr_create_intervalmap_from_vectors`, starts, ends, values)
+}
+
 add_interval <- function(container, start, end, value = NULL) {
     invisible(.Call(`_superintervalsr_add_interval`, container, start, end, value))
 }
@@ -29,6 +33,18 @@ get_data_at <- function(container, r_index) {
     .Call(`_superintervalsr_get_data_at`, container, r_index)
 }
 
+get_all_starts <- function(container) {
+    .Call(`_superintervalsr_get_all_starts`, container)
+}
+
+get_all_ends <- function(container) {
+    .Call(`_superintervalsr_get_all_ends`, container)
+}
+
+get_all_values <- function(container) {
+    .Call(`_superintervalsr_get_all_values`, container)
+}
+
 clear_intervals <- function(container) {
     invisible(.Call(`_superintervalsr_clear_intervals`, container))
 }
@@ -43,6 +59,10 @@ get_size <- function(container) {
 
 cpp_has_overlaps <- function(container, start, end) {
     .Call(`_superintervalsr_cpp_has_overlaps`, container, start, end)
+}
+
+has_overlaps_batch <- function(container, starts, ends) {
+    .Call(`_superintervalsr_has_overlaps_batch`, container, starts, ends)
 }
 
 count_overlaps <- function(container, start, end) {
@@ -67,5 +87,17 @@ cpp_search_items <- function(container, start, end) {
 
 get_coverage <- function(container, start, end) {
     .Call(`_superintervalsr_get_coverage`, container, start, end)
+}
+
+search_idxs_batch <- function(container, starts, ends) {
+    .Call(`_superintervalsr_search_idxs_batch`, container, starts, ends)
+}
+
+count_batch <- function(container, starts, ends) {
+    .Call(`_superintervalsr_count_batch`, container, starts, ends)
+}
+
+search_values_batch <- function(container, starts, ends) {
+    .Call(`_superintervalsr_search_values_batch`, container, starts, ends)
 }
 

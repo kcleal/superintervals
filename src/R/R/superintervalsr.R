@@ -17,6 +17,34 @@ IntervalMap <- function() {
   structure(create_intervalmap(), class = "IntervalMap")
 }
 
+#' Create IntervalMap from vectors
+#'
+#' Creates a new IntervalMap object from vectors of start positions, end positions,
+#' and optional values. The resulting IntervalMap is ready to use (no need to call build() afterwards).
+#'
+#' @param starts Integer vector of start positions (inclusive)
+#' @param ends Integer vector of end positions (inclusive)
+#' @param values Optional list of values to associate with each interval. If NULL, no values are stored.
+#' @return An IntervalMap object
+#' @export
+#' @examples
+#' # Create with values
+#' im <- IntervalMap.from_vectors(c(1, 10), c(5, 15), c("gene1", "gene2"))
+#'
+#' # Create without values
+#' im2 <- IntervalMap.from_vectors(c(1, 10), c(5, 15))
+IntervalMap.from_vectors <- function(starts, ends, values = NULL) {
+    if (is.null(values)) {
+        values <- list()
+    }
+    im <- create_intervalmap_from_vectors(
+        as.integer(starts),
+        as.integer(ends),
+        as.list(values)
+    )
+    structure(im, class = "IntervalMap")
+}
+
 #' Get the length of an IntervalMap
 #'
 #' @param x IntervalMap object
@@ -216,6 +244,24 @@ count <- function(x, start, end) {
   count_overlaps(x, as.integer(start), as.integer(end))
 }
 
+#' Count overlaps for multiple ranges
+#'
+#' @param x IntervalMap object
+#' @param starts Vector of query start positions
+#' @param ends Vector of query end positions
+#' @return Integer vector of overlap counts, one per query
+#' @export
+#' @examples
+#' im <- IntervalMap()
+#' add(im, 1, 10, "gene1")
+#' add(im, 5, 15, "gene2")
+#' add(im, 20, 30, "gene3")
+#' build(im)
+#' count.batch(im, c(7, 25), c(12, 35))  # c(2, 1)
+count.batch <- function(x, starts, ends) {
+  count_batch(x, as.integer(starts), as.integer(ends))
+}
+
 #' Search for values in overlapping intervals
 #'
 #' @param x IntervalMap object
@@ -248,6 +294,31 @@ search_values <- function(x, start, end) {
 #' search_idxs(im, 7, 12)  # c(1, 2)
 search_idxs <- function(x, start, end) {
   search_indexes(x, as.integer(start), as.integer(end))
+}
+
+#' Batch search for indices
+#'
+#' Search for indices of overlapping intervals for multiple query ranges simultaneously.
+#' This is more efficient than calling search_idxs multiple times.
+#'
+#' @param x IntervalMap object
+#' @param starts Integer vector of query start positions (inclusive)
+#' @param ends Integer vector of query end positions (inclusive)
+#' @return List of integer vectors, where each element contains the 1-based indices
+#'   of intervals that overlap with the corresponding query range
+#' @export
+#' @examples
+#' im <- IntervalMap()
+#' add(im, 1, 10, "gene1")
+#' add(im, 5, 15, "gene2")
+#' add(im, 20, 30, "gene3")
+#' build(im)
+#'
+#' # Search multiple ranges at once
+#' result <- search_idxs.batch(im, c(7, 25), c(12, 35))
+#' # Returns list(c(1, 2), c(3))
+search_idxs.batch <- function(x, starts, ends) {
+    search_idxs_batch(x, as.integer(starts), as.integer(ends))
 }
 
 #' Search for keys (start, end pairs) of overlapping intervals
