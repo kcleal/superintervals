@@ -180,17 +180,19 @@ void run_NCLS(std::vector<BedInterval>& intervals, std::vector<BedInterval>& que
 
     t1 = high_resolution_clock::now();
     IntervalIterator *it;
-    IntervalIterator *it_alloc;
-    IntervalMap im_buf[1024];
+//    IntervalIterator *it_alloc;
+    IntervalIterator *it_alloc = interval_iterator_alloc();
+    IntervalMap im_buf[50000];
     found = 0;
     for (const auto& item : queries) {
-        it_alloc = interval_iterator_alloc();
+//        it_alloc = interval_iterator_alloc();
+        reset_interval_iterator(it_alloc);
         it = it_alloc;
         while(it){
-            find_intervals(it, item.start, item.end, im, *p_n, sh, *p_nlists, im_buf, 1024, nhits, &it);
+            find_intervals(it, item.start, item.end, im, *p_n, sh, *p_nlists, im_buf, 50000, nhits, &it);
             found += *nhits;
         }
-        free_interval_iterator(it_alloc);
+//        free_interval_iterator(it_alloc);
     }
     std::cerr << uSec(t1) << "," << found << std::endl;
 }
@@ -249,9 +251,11 @@ void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInte
 
 void run_tools(std::vector<BedInterval>& intervals, std::vector<BedInterval>& queries) {
 
-    run_IITree(intervals, queries);
+
 
     run_ITree(intervals, queries);
+
+    run_IITree(intervals, queries);
 
     run_NCLS(intervals, queries);
 
