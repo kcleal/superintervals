@@ -1,5 +1,5 @@
 # Set repository language to R
-* linguist-language=R
+; * linguist-language=R
 
 *.R linguist-language=R
 *.r linguist-language=R
@@ -12,3 +12,6 @@
 README* linguist-documentation
 docs/ linguist-documentation
 man/ linguist-documentation
+
+*.cpp linguist-vendored
+*.h linguist-vendored
