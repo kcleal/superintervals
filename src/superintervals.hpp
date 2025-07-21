@@ -461,12 +461,13 @@ class IntervalMap {
                         for (size_t j = i; j > i - block; j -= simd_width) {
                             __m256i ends_vec = _mm256_loadu_si256((__m256i*)(&ends[j - simd_width + 1]));
                             __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
-    //                        int mask = _mm256_movemask_epi8(~cmp_mask);
-    //                        count += _mm_popcnt_u32(mask);
+//                            int mask = _mm256_movemask_epi8(~cmp_mask);
+//                            count += _mm_popcnt_u32(mask);
+//                            int mask = _mm256_movemask_ps(_mm256_castsi256_ps(~cmp_mask));
                             int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
-                            count += _mm_popcnt_u32(mask);
+                            count += 8 - _mm_popcnt_u32(mask);
                         }
-    //                    found += count / 4;  // Each comparison result is 4 bits
+//                        found += count / 4;  // Each comparison result is 4 bits
                         found += count;
                         i -= block;
                         if (count < block) {

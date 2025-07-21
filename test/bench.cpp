@@ -121,9 +121,10 @@ void run_IITree(std::vector<BedInterval>& intervals, std::vector<BedInterval>& q
     t1 = high_resolution_clock::now();
     for (const auto& item : queries) {
         tree.overlap(item.start, item.end, c);
-        // IITree only returns indexes, need to enumerate actual data for a fair test
+//        found += c.size();
+        // IITree only returns indexes, need to reference actual data for a fair test
         for (const auto &v: c) {
-            a.push_back(v);
+            a.push_back(tree.data(v));
         }
         found += a.size();
         a.clear();

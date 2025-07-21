@@ -117,7 +117,7 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
     let mut now = Instant::now();
     for &(first, last) in &ranges {
         seqname_tree.query(first, last, |node| {
-            results.push(node.metadata);
+            results.push(node.metadata.clone());
         });
         total_found += results.len();
         results.clear();

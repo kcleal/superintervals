@@ -431,8 +431,6 @@ impl<T: Clone> IntervalMap<T>
                         while i > BLOCK {
                             let mut count = 0;
                             let mut j = i;
-// int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
-//                             count += _mm_popcnt_u32(mask);
                             // Process SIMD_WIDTH elements at a time
                             while j > i - BLOCK {
                                 let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
@@ -442,7 +440,7 @@ impl<T: Clone> IntervalMap<T>
                                 let mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
                                 // Count the number of set bits, each comparison result is 4 bits
 //                                 count += (!mask).count_ones() as usize / 4;
-                                count += (!mask).count_ones() as usize; // / 4;
+                                count += 8 - (mask).count_ones() as usize;
                                 j = j.saturating_sub(SIMD_WIDTH);
                             }
 
