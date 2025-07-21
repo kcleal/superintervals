@@ -1,0 +1,14 @@
+# Set repository language to R
+* linguist-language=R
+
+*.R linguist-language=R
+*.r linguist-language=R
+
+*.Rmd linguist-language=R
+*.rmd linguist-language=R
+
+*.html linguist-documentation
+*.md linguist-documentation
+README* linguist-documentation
+docs/ linguist-documentation
+man/ linguist-documentation
