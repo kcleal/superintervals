@@ -5,16 +5,145 @@ NULL
 #' Create a new IntervalMap
 #'
 #' Creates a new IntervalMap object for storing and querying intervals efficiently.
+#' This function uses method dispatch to automatically handle different input types.
 #'
+#' @param x Input object. Can be missing (creates empty map), GRanges, or data.frame
+#' @param ... Additional arguments passed to specific methods
 #' @return An IntervalMap object
 #' @export
 #' @examples
-#' im <- IntervalMap()
-#' add(im, 1, 10, "gene1")
-#' add(im, 15, 25, "gene2")
-#' build(im)
-IntervalMap <- function() {
-  structure(create_intervalmap(), class = "IntervalMap")
+#' # Create empty IntervalMap
+#' im1 <- IntervalMap()
+#'
+#' # Create from GRanges
+#' library(GenomicRanges)
+#' gr <- GRanges("chr1", IRanges(c(1, 10), c(5, 15)), gene_id = c("A", "B"))
+#' im2 <- IntervalMap(gr, value_column = "gene_id")
+#'
+#' # Create from data.frame
+#' df <- data.frame(start = c(1, 10), end = c(5, 15), gene = c("A", "B"))
+#' im3 <- IntervalMap(df, value_column = "gene")
+IntervalMap <- function(x, ...) {
+  if (missing(x)) {
+    IntervalMap.default()
+  } else {
+    UseMethod("IntervalMap")
+  }
+}
+
+#' @rdname IntervalMap
+#' @export
+IntervalMap.default <- function(x = NULL, ...) {
+  if (is.null(x)) {
+    structure(create_intervalmap(), class = "IntervalMap")
+  } else {
+    stop("Don't know how to create IntervalMap from object of class: ", class(x)[1])
+  }
+}
+
+#' @rdname IntervalMap
+#' @param value_column Name of column to use as values (default: use all as named list)
+#' @param seqname Optional chromosome name to filter to (e.g., "chr1")
+#' @export
+IntervalMap.GRanges <- function(x, value_column = NULL, seqname = NULL, ...) {
+  if (!requireNamespace("GenomicRanges", quietly = TRUE)) {
+    stop("GenomicRanges package required for this functionality")
+  }
+  if (!requireNamespace("S4Vectors", quietly = TRUE)) {
+    stop("S4Vectors package required for this functionality")
+  }
+
+  # Filter to specific chromosome if requested
+  if (!is.null(seqname)) {
+    x <- x[GenomicRanges::seqnames(x) == seqname]
+  }
+  starts <- GenomicRanges::start(x)
+  ends <- GenomicRanges::end(x)
+
+  if (!is.null(value_column)) {
+    if (!value_column %in% colnames(S4Vectors::mcols(x))) {
+      stop("Column '", value_column, "' not found in GRanges metadata")
+    }
+    values <- S4Vectors::mcols(x)[[value_column]]
+  } else if (ncol(S4Vectors::mcols(x)) > 0) {
+    # Convert each row to a named list (preserves all metadata)
+    mcols_df <- as.data.frame(S4Vectors::mcols(x))
+    values <- lapply(1:nrow(mcols_df), function(i) {
+      as.list(mcols_df[i, , drop = FALSE])
+    })
+  } else {
+    values <- list()
+  }
+  IntervalMap.from_vectors(starts, ends, values)
+}
+
+#' @rdname IntervalMap
+#' @param start_column Name of start column (default: "start")
+#' @param end_column Name of end column (default: "end")
+#' @param value_column Name of column to use as values (default: use all other columns as named list)
+#' @export
+IntervalMap.data.frame <- function(x, start_column = "start", end_column = "end",
+                                  value_column = NULL, ...) {
+  if (!start_column %in% colnames(x)) {
+    stop("Start column '", start_column, "' not found")
+  }
+  if (!end_column %in% colnames(x)) {
+    stop("End column '", end_column, "' not found")
+  }
+  starts <- as.integer(x[[start_column]])
+  ends <- as.integer(x[[end_column]])
+
+  if (!is.null(value_column)) {
+    if (!value_column %in% colnames(x)) {
+      stop("Value column '", value_column, "' not found")
+    }
+    values <- x[[value_column]]
+  } else {
+    # Use all other columns as named lists
+    other_cols <- setdiff(colnames(x), c(start_column, end_column))
+    if (length(other_cols) > 0) {
+      values <- lapply(1:nrow(x), function(i) {
+        as.list(x[i, other_cols, drop = FALSE])
+      })
+    } else {
+      values <- list()
+    }
+  }
+  IntervalMap.from_vectors(starts, ends, values)
+}
+
+#' Convert IntervalMap items result back to GRanges
+#'
+#' Helper function to convert search_items results back to Bioconductor objects.
+#'
+#' @param items_result Result from search_items()
+#' @param seqname Chromosome name to assign (default: "chr1")
+#' @param valuename Value name to assign (default: "value")
+#' @return GRanges object
+#' @export
+as_granges <- function(items_result, seqname = "chr1", valuename = "value") {
+  if (!requireNamespace("GenomicRanges", quietly = TRUE)) {
+    stop("GenomicRanges package required for this functionality")
+  }
+  if (!requireNamespace("IRanges", quietly = TRUE)) {
+    stop("IRanges package required for this functionality")
+  }
+  if (!requireNamespace("S4Vectors", quietly = TRUE)) {
+    stop("S4Vectors package required for this functionality")
+  }
+
+  if (is.null(items_result$start) || length(items_result$start) == 0) {
+    return(GenomicRanges::GRanges())
+  }
+  gr <- GenomicRanges::GRanges(
+    seqnames = seqname,
+    ranges = IRanges::IRanges(start = items_result$start, end = items_result$end)
+  )
+  # Add values as metadata if present
+  if (!is.null(items_result$value) && length(items_result$value) > 0) {
+    S4Vectors::mcols(gr)[[valuename]] <- items_result$value
+  }
+  gr
 }
 
 #' Create IntervalMap from vectors
@@ -26,7 +155,7 @@ IntervalMap <- function() {
 #' @param ends Integer vector of end positions (inclusive)
 #' @param values Optional list of values to associate with each interval. If NULL, no values are stored.
 #' @return An IntervalMap object
-#' @export
+#' @export IntervalMap.from_vectors
 #' @examples
 #' # Create with values
 #' im <- IntervalMap.from_vectors(c(1, 10), c(5, 15), c("gene1", "gene2"))

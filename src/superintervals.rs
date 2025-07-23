@@ -4,6 +4,7 @@
 use std::cmp::Ordering;
 use std::cmp::{max, min};
 use serde::{Serialize, Deserialize};
+use aligned_vec::{AVec, ConstAlign};
 
 /// Represents an interval with associated data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,6 +13,17 @@ pub struct Interval<T> {
     pub end: i32,
     pub data: T,
 }
+
+
+
+#[cfg(target_feature = "avx2")]
+type AlignedEnds = AVec<i32, ConstAlign<32>>;
+
+#[cfg(all(target_feature = "neon", not(target_feature = "avx2")))]
+type AlignedEnds = AVec<i32, ConstAlign<16>>;
+
+#[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+type AlignedEnds = Vec<i32>;
 
 /// A static data structure for finding interval intersections
 ///
@@ -25,7 +37,8 @@ pub struct Interval<T> {
 pub struct IntervalMap<T>
 {
     pub starts: Vec<i32>,
-    pub ends: Vec<i32>,
+//     pub ends: Vec<i32>,
+    pub ends: AlignedEnds,
     pub branch: Vec<usize>,
     pub data: Vec<T>,
     pub start_sorted: bool,
@@ -38,7 +51,18 @@ impl<T: Clone> IntervalMap<T>
     pub fn new() -> Self {
         IntervalMap {
             starts: Vec::new(),
-            ends: Vec::new(),
+//             ends: Vec::new(),
+            ends: {
+                #[cfg(target_feature = "avx2")]
+                { AVec::new(32) }
+
+                #[cfg(all(target_feature = "neon", not(target_feature = "avx2")))]
+                { AVec::new(16) }
+
+                #[cfg(not(any(target_feature = "avx2", target_feature = "neon")))]
+                { Vec::new() }
+            },
+
             branch: Vec::new(),
             data: Vec::new(),
             start_sorted: true,
@@ -420,7 +444,7 @@ impl<T: Clone> IntervalMap<T>
                 use std::arch::x86_64::*;
                 let start_vec = _mm256_set1_epi32(start);
                 const SIMD_WIDTH: usize = 8; // 256 bits / 32 bits = 8 elements
-                const BLOCK: usize = SIMD_WIDTH * 4; // 32 elements per block
+                const BLOCK: usize = SIMD_WIDTH * 4; // 32 elements per block, 2 cache lines
 
                 while i > 0 {
                     if start <= *self.ends.get_unchecked(i) {
@@ -428,18 +452,51 @@ impl<T: Clone> IntervalMap<T>
                         i -= 1;
 
                         // Process blocks of data with SIMD
+//                         while i > BLOCK {
+//                             let mut count = 0;
+//                             let mut j = i;
+//                             // Process SIMD_WIDTH elements at a time
+//                             while j > i - BLOCK {
+//                                 let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
+//                                 let ends_vec = _mm256_loadu_si256(self.ends.as_ptr().add(end_idx) as *const __m256i);
+//                                 let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
+//                                 let mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
+//                                 count += 8 - (mask).count_ones() as usize;
+//                                 j = j.saturating_sub(SIMD_WIDTH);
+//                             }
+//
+//                             found += count;
+//                             i -= BLOCK;
+//
+//                             // Early exit if we didn't find full block worth of matches
+//                             if count < BLOCK && start > *self.ends.get_unchecked(i + 1) {
+//                                 break;
+//                             }
+//                         }
                         while i > BLOCK {
-                            let mut count = 0;
-                            let mut j = i;
-                            // Process SIMD_WIDTH elements at a time
-                            while j > i - BLOCK {
-                                let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
-                                let ends_vec = _mm256_loadu_si256(self.ends.as_ptr().add(end_idx) as *const __m256i);
-                                let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
-                                let mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
-                                count += 8 - (mask).count_ones() as usize;
-                                j = j.saturating_sub(SIMD_WIDTH);
-                            }
+                            let j = i - BLOCK + 1;
+
+                            // Load all 4 vectors
+                            let ends_vec0 = _mm256_loadu_si256(self.ends.as_ptr().add(j) as *const __m256i);
+                            let ends_vec1 = _mm256_loadu_si256(self.ends.as_ptr().add(j + SIMD_WIDTH) as *const __m256i);
+                            let ends_vec2 = _mm256_loadu_si256(self.ends.as_ptr().add(j + 2 * SIMD_WIDTH) as *const __m256i);
+                            let ends_vec3 = _mm256_loadu_si256(self.ends.as_ptr().add(j + 3 * SIMD_WIDTH) as *const __m256i);
+
+                            // Compare all vectors
+                            let cmp_mask0 = _mm256_cmpgt_epi32(start_vec, ends_vec0);
+                            let cmp_mask1 = _mm256_cmpgt_epi32(start_vec, ends_vec1);
+                            let cmp_mask2 = _mm256_cmpgt_epi32(start_vec, ends_vec2);
+                            let cmp_mask3 = _mm256_cmpgt_epi32(start_vec, ends_vec3);
+
+                            // Extract masks
+                            let mask0 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask0));
+                            let mask1 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask1));
+                            let mask2 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask2));
+                            let mask3 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask3));
+
+                            // Count and accumulate
+                            let count = (8 - (mask0).count_ones() as usize) + (8 - (mask1).count_ones() as usize) +
+                                        (8 - (mask2).count_ones() as usize) + (8 - (mask3).count_ones() as usize);
 
                             found += count;
                             i -= BLOCK;
@@ -463,29 +520,76 @@ impl<T: Clone> IntervalMap<T>
                 use std::arch::aarch64::*;
                 let start_vec = vdupq_n_s32(start);
                 const SIMD_WIDTH: usize = 4; // 128 bits / 32 bits = 4 elements
-                const BLOCK: usize = SIMD_WIDTH * 4; // 16 elements per block
+                const BLOCK: usize = SIMD_WIDTH * 8; // 2 cache lines
                 let ones = vdupq_n_u32(1);
                 while i > 0 {
                     if start <= *self.ends.get_unchecked(i) {
                         found += 1;
                         i -= 1;
+//                         while i > BLOCK {
+//                             let mut count = 0;
+//                             let mut j = i;
+//                             while j > i - BLOCK {
+//                                 let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
+//                                 let ends_vec = vld1q_s32(self.ends.as_ptr().add(end_idx) as *const i32);
+//                                 let mask = vcgtq_s32(start_vec, ends_vec);
+//                                 let bool_mask = vaddq_u32(mask, ones);
+//                                 count += vaddvq_u32(bool_mask) as usize;
+//                                 j = j.saturating_sub(SIMD_WIDTH);
+//                             }
+//                             found += count;
+//                             i -= BLOCK;
+//                             if count < BLOCK {
+//                                 break;
+//                             }
+//                         }
+
                         while i > BLOCK {
-                            let mut count = 0;
-                            let mut j = i;
-                            while j > i - BLOCK {
-                                let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
-                                let ends_vec = vld1q_s32(self.ends.as_ptr().add(end_idx) as *const i32);
-                                let mask = vcgtq_s32(start_vec, ends_vec);
-                                let bool_mask = vaddq_u32(mask, ones);
-                                count += vaddvq_u32(bool_mask) as usize;
-                                j = j.saturating_sub(SIMD_WIDTH);
-                            }
+                            let j = i - BLOCK + 1;
+
+                            // Load all 8 vectors
+                            let ends_vec0 = vld1q_s32(self.ends.as_ptr().add(j) as *const i32);
+                            let ends_vec1 = vld1q_s32(self.ends.as_ptr().add(j + SIMD_WIDTH) as *const i32);
+                            let ends_vec2 = vld1q_s32(self.ends.as_ptr().add(j + 2 * SIMD_WIDTH) as *const i32);
+                            let ends_vec3 = vld1q_s32(self.ends.as_ptr().add(j + 3 * SIMD_WIDTH) as *const i32);
+                            let ends_vec4 = vld1q_s32(self.ends.as_ptr().add(j + 4 * SIMD_WIDTH) as *const i32);
+                            let ends_vec5 = vld1q_s32(self.ends.as_ptr().add(j + 5 * SIMD_WIDTH) as *const i32);
+                            let ends_vec6 = vld1q_s32(self.ends.as_ptr().add(j + 6 * SIMD_WIDTH) as *const i32);
+                            let ends_vec7 = vld1q_s32(self.ends.as_ptr().add(j + 7 * SIMD_WIDTH) as *const i32);
+
+                            // Compare all vectors
+                            let mask0 = vcgtq_s32(start_vec, ends_vec0);
+                            let mask1 = vcgtq_s32(start_vec, ends_vec1);
+                            let mask2 = vcgtq_s32(start_vec, ends_vec2);
+                            let mask3 = vcgtq_s32(start_vec, ends_vec3);
+                            let mask4 = vcgtq_s32(start_vec, ends_vec4);
+                            let mask5 = vcgtq_s32(start_vec, ends_vec5);
+                            let mask6 = vcgtq_s32(start_vec, ends_vec6);
+                            let mask7 = vcgtq_s32(start_vec, ends_vec7);
+
+                            // Convert to boolean masks
+                            let bool_mask0 = vaddq_u32(mask0, ones);
+                            let bool_mask1 = vaddq_u32(mask1, ones);
+                            let bool_mask2 = vaddq_u32(mask2, ones);
+                            let bool_mask3 = vaddq_u32(mask3, ones);
+                            let bool_mask4 = vaddq_u32(mask4, ones);
+                            let bool_mask5 = vaddq_u32(mask5, ones);
+                            let bool_mask6 = vaddq_u32(mask6, ones);
+                            let bool_mask7 = vaddq_u32(mask7, ones);
+
+                            // Sum all lanes and accumulate
+                            let count = vaddvq_u32(bool_mask0) as usize + vaddvq_u32(bool_mask1) as usize +
+                                        vaddvq_u32(bool_mask2) as usize + vaddvq_u32(bool_mask3) as usize +
+                                        vaddvq_u32(bool_mask4) as usize + vaddvq_u32(bool_mask5) as usize +
+                                        vaddvq_u32(bool_mask6) as usize + vaddvq_u32(bool_mask7) as usize;
+
                             found += count;
                             i -= BLOCK;
                             if count < BLOCK {
                                 break;
                             }
                         }
+
                     } else {
                         if *self.branch.get_unchecked(i) == usize::MAX {
                             return found;

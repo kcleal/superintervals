@@ -1,267 +1,186 @@
 # SuperIntervals
 
-The R Bioconductor package `superintervalsr` provides a fast, memory-efficient data structure for interval intersection queries in R.
-Built on a novel superset-index approach that maintains intervals in position-sorted order,
-enabling cache-friendly searches and SIMD-optimized counting operations.
+The R Bioconductor package `superintervalsr` provides very fast interval intersection queries in R.
+Built on a novel superset-index approach with batch operations in mind.
 
-## Key Features
+## Why SuperIntervals?
 
-- Linear-time index construction from sorted intervals
-- Cache-friendly querying with minimal memory overhead
-- SIMD acceleration (AVX2/Neon) for counting operations
-- High performance - often faster than existing interval libraries
-- Minimal memory overhead - one size_t per interval
-- End-inclusive intervals - intervals include both start and end positions
-- Batch operations for efficient bulk queries
+- Faster interval intersection queries
+- Low memory overhead
+- Bioconductor friendly: GRanges → IntervalMap → query → back to GRanges
 
 ## Installation
 
-Install using:
 ```r
 remotes::install_github("kcleal/superintervalsr")
 ```
 
-Run a small benchmark vs IRanges:
-```
-Rscript benchmark.R
-```
+## Core Workflow
 
-## Quick Start
-
-### Creating an IntervalMap
-
-The core data structure is `IntervalMap`, which stores intervals with associated values:
+### 1. Create IntervalMap from Your Data
 
 ```r
-# Method 1: Create empty and add intervals
-imap <- IntervalMap()
+# From vectors (recommended - no build() needed)
+imap <- IntervalMap.from_vectors(starts, ends, values)
 
-# Add genomic intervals (e.g., genes) - intervals are end-inclusive
-add(imap, 1000, 5000, list(gene_id="ENSG001", name="GENE_A"))
-add(imap, 3000, 8000, list(gene_id="ENSG002", name="GENE_B")) 
-add(imap, 10000, 15000, list(gene_id="ENSG003", name="GENE_C"))
+# From GRanges (Bioconductor integration)
+library(GenomicRanges)
+gr <- GRanges("chr1", IRanges(starts, ends), gene_id = values)
+imap <- IntervalMap(gr, value_column = "gene_id", seqname = "chr1")
 
-# The build() function must be called before any queries
-build(imap)
-
-# Method 2: Create directly from vectors (no build() needed)
-starts <- c(1000, 3000, 10000)
-ends <- c(5000, 8000, 15000)
-values <- list(
-  list(gene_id="ENSG001", name="GENE_A"),
-  list(gene_id="ENSG002", name="GENE_B"),
-  list(gene_id="ENSG003", name="GENE_C")
-)
-imap2 <- IntervalMap.from_vectors(starts, ends, values)
-
-# Check basic properties
-cat("Number of intervals:", length(imap), "\n")
-cat("Total intervals:", size(imap), "\n")
+# From data.frame
+df <- data.frame(start = starts, end = ends, gene = values)
+imap <- IntervalMap(df, value_column = "gene")
 ```
 
-### Accessing Intervals
+### 2. Batch Query Operations (The Fast Way)
 
 ```r
-# Access intervals by index (1-based in R)
-interval1 <- imap[1]
-print(interval1)
+# Multiple query regions
+query_starts <- c(2000, 7000, 12000, 50000)
+query_ends <- c(4000, 9000, 14000, 55000)
 
-# Alternative syntax
-interval2 <- at(imap, 2)
-print(interval2)
+# Batch counting - orders of magnitude faster
+counts <- count.batch(imap, query_starts, query_ends)
+#> [1] 3 2 1 4
 
-# Get specific components
-start_pos <- starts_at(imap, 1)
-end_pos <- ends_at(imap, 1)
-value <- data_at(imap, 1)
-```
+# Batch index search - get all overlapping interval indices  
+indices_list <- search_idxs.batch(imap, query_starts, query_ends)
+#> [[1]]
+#> [1] 12 15 23
+#> [[2]] 
+#> [1] 45 67
+#> ... etc
 
-### Querying Overlaps
-
-SuperIntervals provides multiple ways to query interval overlaps:
-
-```r
-# Define query region
-query_start <- 4000
-query_end <- 6000
-
-# Check for any overlaps
-has_overlaps_result <- has_overlaps(imap, query_start, query_end)
-cat("Has overlaps:", has_overlaps_result, "\n")
-
-# Count overlapping intervals (SIMD-optimized)
-overlap_count <- count(imap, query_start, query_end)
-cat("Number of overlaps:", overlap_count, "\n")
-
-# Find indices of overlapping intervals
-indices <- search_idxs(imap, query_start, query_end)
-print("Overlapping interval indices:")
-print(indices)
-
-# Find overlapping interval coordinates
-keys <- search_keys(imap, query_start, query_end)
-print("Overlapping coordinates:")
-print(keys)
-
-# Find values associated with overlapping intervals
-values <- search_values(imap, query_start, query_end)
-print("Associated values:")
-print(values)
-
-# Find complete overlapping intervals (coordinates + values)
-overlaps <- search_items(imap, query_start, query_end)
-print("Complete overlaps:")
-print(overlaps)
-```
-
-### Batch Operations for High Performance
-
-For scenarios with many queries, batch operations provide significant performance improvements:
-
-```r
-# Define multiple query regions
-query_starts <- c(2000, 7000, 12000)
-query_ends <- c(4000, 9000, 14000)
-
-# Batch count overlaps - much faster than individual count() calls
-batch_counts <- count.batch(imap, query_starts, query_ends)
-cat("Overlap counts for each query:", batch_counts, "\n")
-
-# Batch search for indices
-batch_indices <- search_idxs.batch(imap, query_starts, query_ends)
-print("Indices for each query:")
-for (i in seq_along(batch_indices)) {
-  cat("Query", i, ":", batch_indices[[i]], "\n")
-}
-
-# Verify consistency between batch and individual operations
-for (i in seq_along(query_starts)) {
-  individual_count <- count(imap, query_starts[i], query_ends[i])
-  batch_count <- batch_counts[i]
-  cat("Query", i, "- Individual:", individual_count, "Batch:", batch_count, "\n")
+# Use indices to get back to original data
+for (i in seq_along(indices_list)) {
+  if (length(indices_list[[i]]) > 0) {
+    overlapping_features <- values[indices_list[[i]]]
+    cat("Query", i, "overlaps:", paste(overlapping_features, collapse = ", "), "\n")
+  }
 }
 ```
 
-### Coverage Analysis
+### 3. Single Query Operations (When You Need Just One)
 
 ```r
-# Get coverage statistics for a range
-coverage_stats <- coverage(imap, 1000, 15000)
-print("Coverage statistics:")
-print(coverage_stats)
+# For occasional single queries
+single_count <- count(imap, 4000, 6000)
+single_indices <- search_idxs(imap, 4000, 6000)
+single_values <- search_values(imap, 4000, 6000)
+
+# Get complete overlap information
+overlaps <- search_items(imap, 4000, 6000)
+# Returns: list(start = c(...), end = c(...), value = list(...))
 ```
 
-### Memory Management
-
-```r
-# Reserve space for better performance when adding many intervals
-reserve(imap, 1000)  # Reserve space for 1000 intervals
-
-# Clear all intervals
-clear(imap)
-```
-
-## Example: Genomic Analysis
+## Real-World Genomics Example
 
 ```r
 library(superintervalsr)
+library(GenomicRanges)
 
-# Create interval map for gene annotations using from_vectors
-gene_starts <- c(1000, 3000, 10000, 12000)
-gene_ends <- c(5000, 8000, 15000, 18000)
-gene_names <- c("GENE_A", "GENE_B", "GENE_C", "GENE_D")
+# Load your gene annotations
+genes <- GRanges("chr1", IRanges(c(1000, 5000, 10000), c(4000, 8000, 15000)),
+                 gene_id = c("ENSG001", "ENSG002", "ENSG003"),
+                 gene_name = c("GENE_A", "GENE_B", "GENE_C"))
 
-genes <- IntervalMap.from_vectors(gene_starts, gene_ends, gene_names)
+# Convert to IntervalMap for fast queries
+gene_imap <- IntervalMap(genes, value_column = "gene_id", seqname = "chr1")
 
-# Query for genes overlapping a region of interest
-roi_start <- 4000
-roi_end <- 12500
+# You have thousands of ChIP-seq peaks to annotate
+n_peaks <- 5000
+peak_starts <- sort(sample(1:20000, n_peaks))
+peak_ends <- peak_starts + sample(200:1000, n_peaks, replace = TRUE)
 
-# Find all overlapping genes
-overlapping_genes <- search_values(genes, roi_start, roi_end)
-cat("Genes overlapping region", roi_start, "-", roi_end, ":\n")
-print(unlist(overlapping_genes))
-
-# Get detailed overlap information
-overlap_details <- search_items(genes, roi_start, roi_end)
-for (i in seq_along(overlap_details$start)) {
-  cat(sprintf("Gene: %s, Position: %d-%d\n", 
-              overlap_details$value[[i]], 
-              overlap_details$start[i], 
-              overlap_details$end[i]))
-}
-```
-
-## Example: Batch Processing for Large-Scale Analysis
-
-```r
-library(superintervalsr)
-
-# Create a large set of genomic features
-n_features <- 10000
-feature_starts <- sort(sample(1:1000000, n_features))
-feature_ends <- feature_starts + sample(100:5000, n_features, replace = TRUE)
-feature_ids <- paste0("feature_", 1:n_features)
-
-# Create IntervalMap efficiently
-features <- IntervalMap.from_vectors(feature_starts, feature_ends, feature_ids)
-
-# Define many query regions (e.g., from sequencing reads)
-n_queries <- 1000
-query_starts <- sort(sample(1:1000000, n_queries))
-query_ends <- query_starts + sample(50:500, n_queries, replace = TRUE)
-
-# Batch processing is much faster than individual queries
-system.time({
-  batch_counts <- count.batch(features, query_starts, query_ends)
-  batch_indices <- search_idxs.batch(features, query_starts, query_ends)
-})
+# Batch annotate all peaks (lightning fast!)
+peak_gene_counts <- count.batch(gene_imap, peak_starts, peak_ends)
+peak_gene_indices <- search_idxs.batch(gene_imap, peak_starts, peak_ends)
 
 # Analyze results
-total_overlaps <- sum(batch_counts)
-queries_with_overlaps <- sum(batch_counts > 0)
-cat(sprintf("Total overlaps: %d\n", total_overlaps))
-cat(sprintf("Queries with overlaps: %d/%d (%.1f%%)\n", 
-           queries_with_overlaps, n_queries, 
-           100 * queries_with_overlaps / n_queries))
+peaks_with_genes <- sum(peak_gene_counts > 0)
+cat("Peaks overlapping genes:", peaks_with_genes, "out of", n_peaks, "\n")
+
+# Get detailed annotations for peaks with genes
+for (i in which(peak_gene_counts > 0)[1:5]) {  # Show first 5
+  overlapping_genes <- genes[peak_gene_indices[[i]]]
+  cat("Peak", i, "overlaps:", 
+      paste(mcols(overlapping_genes)$gene_name, collapse = ", "), "\n")
+}
 ```
 
-## Performance Notes
+## Performance Comparison
 
-- Call `build()` after adding all intervals and before performing queries (not needed with `IntervalMap.from_vectors`)
-- Use `IntervalMap.from_vectors()` for better performance when creating from existing data
-- Use batch operations (`count.batch`, `search_idxs.batch`) for multiple queries - often 2-10x faster
-- Use `reserve()` when you know the approximate number of intervals to improve performance
-- The package is optimized for scenarios with many intervals and frequent queries
-- SIMD optimizations are automatically used when available on your system
+```
+Rscript ./benchmark.R
 
-## API Reference
+>>> 4. SUMMARY
+----------
+Performance vs IRanges (NCLS algorithm):
+- Overlap counting: 48.9x faster
+- Overlap finding:  10.6x faster
+```
 
-### Core Functions
-- `IntervalMap()` - Create a new empty interval map
-- `IntervalMap.from_vectors(starts, ends, values)` - Create interval map from vectors (ready to use)
-- `add(x, start, end, value)` - Add an interval with optional value
-- `build(x)` - Build index for efficient querying (required after adding intervals)
-- `clear(x)` - Remove all intervals
-- `reserve(x, n)` - Reserve space for n intervals
 
-### Query Functions
-- `has_overlaps(x, start, end)` - Check if any intervals overlap
-- `count(x, start, end)` - Count overlapping intervals
-- `search_idxs(x, start, end)` - Get indices of overlapping intervals
-- `search_keys(x, start, end)` - Get coordinates of overlapping intervals  
-- `search_values(x, start, end)` - Get values of overlapping intervals
-- `search_items(x, start, end)` - Get complete overlap information
-- `coverage(x, start, end)` - Get coverage statistics
+## Complete API Reference
 
-### Batch Query Functions
-- `count.batch(x, starts, ends)` - Count overlaps for multiple query ranges
-- `search_idxs.batch(x, starts, ends)` - Get indices for multiple query ranges
+### Core Data Structure
+```r
+# Create IntervalMap
+IntervalMap()                                     # Empty map
+IntervalMap.from_vectors(starts, ends, values)    # From vectors (recommended)
+IntervalMap(granges, value_column, seqname)       # From GRanges
+IntervalMap(dataframe, start_column, end_column)  # From data.frame
+```
 
-### Access Functions
-- `length(x)` - Number of intervals
-- `size(x)` - Number of intervals (alias)
-- `at(x, idx)` - Get interval at index
-- `starts_at(x, idx)` - Get start position at index
-- `ends_at(x, idx)` - Get end position at index  
-- `data_at(x, idx)` - Get value at index
+### Batch Operations (Use These!)
+```r
+count.batch(imap, starts, ends)        # Count overlaps for multiple queries
+search_idxs.batch(imap, starts, ends)  # Get indices for multiple queries
+```
+
+### Single Query Operations
+```r
+has_overlaps(imap, start, end)    # TRUE/FALSE for any overlap
+count(imap, start, end)           # Count overlapping intervals
+search_idxs(imap, start, end)     # Get indices of overlapping intervals
+search_values(imap, start, end)   # Get values of overlapping intervals
+search_keys(imap, start, end)     # Get coordinates of overlapping intervals
+search_items(imap, start, end)    # Get complete overlap information (coords + values)
+coverage(imap, start, end)        # Coverage statistics
+```
+
+### Bioconductor Integration
+```r
+as_granges(search_items_result, seqname, valuename)  # Convert back to GRanges
+```
+
+### Utilities
+```r
+length(imap)           # Number of intervals
+at(imap, index)        # Get interval at specific index
+clear(imap)            # Remove all intervals
+reserve(imap, n)       # Pre-allocate space for n intervals
+```
+
+## Advanced: Manual Interval Addition
+
+```r
+# For dynamic construction (less common)
+imap <- IntervalMap()
+add(imap, 1000, 5000, "interval1")
+add(imap, 3000, 8000, "interval2")
+build(imap)  # Required before queries when using add()
+
+# Batch operations work the same way
+counts <- count.batch(imap, query_starts, query_ends)
+```
+
+## Key Technical Details
+
+- **End-inclusive intervals**: Both start and end positions are included
+- **Automatic sorting**: Intervals are maintained in sorted order
+- **SIMD optimization**: Automatic vectorization on modern CPUs  
+- **Memory efficient**: One size_t per interval overhead
+- **Thread safe**: Read operations can be parallelized
+- **Cache friendly**: Optimized memory layout for fast iteration

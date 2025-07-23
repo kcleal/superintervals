@@ -1,4 +1,4 @@
-// Version 0.3.1
+// Version 0.3.4
 #pragma once
 
 #include <algorithm>
@@ -43,10 +43,19 @@ struct Interval {
  * @tparam T The data type associated with each interval
  */
 template<typename S, typename T>
+
 class IntervalMap {
     public:
     std::vector<S> starts;
-    std::vector<S> ends;
+//    std::vector<S> ends;
+
+    #ifdef __AVX2__
+        alignas(32) std::vector<S> ends;
+    #elif defined(__ARM_NEON)
+        alignas(16) std::vector<S> ends;
+    #else
+        alignas(sizeof(S)) std::vector<S> ends;
+    #endif
     std::vector<size_t> branch;
     std::vector<T> data;
     bool start_sorted, end_sorted;
@@ -282,7 +291,6 @@ class IntervalMap {
         // First do exponential search if we have room
         size_t search_right = right;
         size_t bound = 1;
-        // Exponential search to find a smaller range
         while (left > 0 && value < starts[left]) {
             search_right = left;
             left = (bound <= left) ? left - bound : 0;
@@ -414,69 +422,159 @@ class IntervalMap {
         }
         size_t found = 0;
 
-#ifdef SI_NOSIMD
+        #if defined(SI_NOSIMD)
+
         constexpr size_t block = 16;
-#elif defined(__AVX2__)
+        constexpr simd_kind active_simd = simd_kind::none;
+
+        #elif defined(__AVX2__)
+
         __m256i start_vec = _mm256_set1_epi32(start);
         constexpr size_t simd_width = 256 / (sizeof(S) * 8);
-        constexpr size_t block = simd_width * 4;
-#elif defined(__ARM_NEON__) || defined(__aarch64__)
+        constexpr size_t block = simd_width * 4;  // 2 cache lines
+        constexpr simd_kind active_simd = simd_kind::avx2;
+
+        #elif defined(__ARM_NEON__) || defined(__aarch64__)
+
         int32x4_t start_vec = vdupq_n_s32(start);
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
         uint32x4_t ones = vdupq_n_u32(1);
-        constexpr size_t block = simd_width * 4;
-#endif
+        constexpr size_t block = simd_width * 8;  // 2 cache lines
+        constexpr simd_kind active_simd = simd_kind::neon;
+
+        #endif
 
         while (i > 0) {
             if (start <= ends[i]) {
                 ++found;
                 --i;
-#ifdef SI_NOSIMD
-                while (i > block) {  // Rely on compiler auto vectorize
-                    size_t count = 0;
-                    for (size_t j = i; j > i - block; --j) {
-                        count += (start <= ends[j]) ? 1 : 0;
-                    }
-                    found += count;
-                    i -= block;
-                    if (count < block && start > ends[i + 1]) {  // check for a branch
-                        break;
+                // Types with width !=4 will use the no-simd path here
+                if constexpr (active_simd == simd_kind::none || sizeof(S) != 4) {
+                    while (i > block) {
+                        size_t count = 0;
+                        for (size_t j = i; j > i - block; --j) {
+                            count += (start <= ends[j]) ? 1 : 0;
+                        }
+                        found += count;
+                        i -= block;
+                        if (count < block && start > ends[i + 1]) {  // check for a branch
+                            break;
+                        }
                     }
                 }
+                #if defined(__AVX2__)
+                else if constexpr (active_simd == simd_kind::avx2) {
+//                    while (i > block) {
+//                        size_t count = 0;
+//                        for (size_t j = i - block + 1; j < i; j += simd_width) {
+//                            __m256i ends_vec = _mm256_loadu_si256((__m256i*)(&ends[j - simd_width + 1]));
+//                            __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
+//                            int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
+//                            count += 8 - _mm_popcnt_u32(mask);
+//                        }
+//                        found += count;
+//                        i -= block;
+//                        if (count < block) {
+//                            break;
+//                        }
+//                    }
 
-#elif defined(__AVX2__)
-                while (i > block) {
-                    size_t count = 0;
-                    for (size_t j = i; j > i - block; j -= simd_width) {
-                        __m256i ends_vec = _mm256_loadu_si256((__m256i*)(&ends[j - simd_width + 1]));
-                        __m256i cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
-                        int mask = _mm256_movemask_epi8(~cmp_mask);
-                        count += _mm_popcnt_u32(mask);
-                    }
-                    found += count / 4;  // Each comparison result is 4 bits
-                    i -= block;
-                    if (count < block) {
-                        break;
+                    while (i > block) {
+                        size_t j = i - block + 1;
+
+                        // Load all 4 vectors
+                        __m256i ends_vec0 = _mm256_load_si256((__m256i*)(&ends[j]));
+                        __m256i ends_vec1 = _mm256_load_si256((__m256i*)(&ends[j + simd_width]));
+                        __m256i ends_vec2 = _mm256_load_si256((__m256i*)(&ends[j + 2 * simd_width]));
+                        __m256i ends_vec3 = _mm256_load_si256((__m256i*)(&ends[j + 3 * simd_width]));
+
+                        // Compare all vectors
+                        __m256i cmp_mask0 = _mm256_cmpgt_epi32(start_vec, ends_vec0);
+                        __m256i cmp_mask1 = _mm256_cmpgt_epi32(start_vec, ends_vec1);
+                        __m256i cmp_mask2 = _mm256_cmpgt_epi32(start_vec, ends_vec2);
+                        __m256i cmp_mask3 = _mm256_cmpgt_epi32(start_vec, ends_vec3);
+
+                        // Extract masks
+                        int mask0 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask0));
+                        int mask1 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask1));
+                        int mask2 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask2));
+                        int mask3 = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask3));
+
+                        // Count and accumulate
+                        size_t count = (8 - _mm_popcnt_u32(mask0)) + (8 - _mm_popcnt_u32(mask1)) +
+                                       (8 - _mm_popcnt_u32(mask2)) + (8 - _mm_popcnt_u32(mask3));
+
+                        found += count;
+                        i -= block;
+                        if (count < block) {
+                            break;
+                        }
                     }
                 }
-#elif defined(__ARM_NEON__) || defined(__aarch64__)
-                while (i > block) {
-                    size_t count = 0;
-                    uint32x4_t mask, bool_mask;
-                    for (size_t j = i; j > i - block; j -= simd_width) { // Neon processes 4 int32 at a time
-                        int32x4_t ends_vec = vld1q_s32(&ends[j - simd_width + 1]);
-                        mask = vcleq_s32(start_vec, ends_vec);  // True (0xFFFFFFFF) for elements where start_vec <= ends_vec
-                        bool_mask = vandq_u32(mask, ones);
-                        count += vaddvq_u32(bool_mask);
-                    }
-                    found += count;
-                    i -= block;
-//                    if (count < block && vgetq_lane_u32(mask, 0) == 0) {  // check for overlap again, before checking for branch?
-                    if (count < block) {  // check for overlap again, before checking for branch?
-                        break;
+                #elif defined(__ARM_NEON__) || defined(__aarch64__)
+                else {  // NEON
+//                    while (i > block) {
+//                        size_t count = 0;
+//                        uint32x4_t mask, bool_mask;
+//                        for (size_t j = i - block + 1; j < i; j += simd_width) { // Neon 4 int32 at a time
+//                            int32x4_t ends_vec = vld1q_s32(&ends[j]);
+//                            mask = vcgtq_s32(start_vec, ends_vec);  // start > ends[j]
+//                            bool_mask = vaddq_u32(mask, ones);
+//                            count += vaddvq_u32(bool_mask); // Sum all lanes
+//                        }
+//                        found += count;
+//                        i -= block;
+//                        if (count < block) {  // check for overlap again, before checking for branch?
+//                            break;
+//                        }
+//                    }
+                    while (i > block) {
+                        size_t j = i - block + 1;
+
+                        // Load all 8 vectors
+                        int32x4_t ends_vec0 = vld1q_s32(&ends[j]);
+                        int32x4_t ends_vec1 = vld1q_s32(&ends[j + simd_width]);
+                        int32x4_t ends_vec2 = vld1q_s32(&ends[j + 2 * simd_width]);
+                        int32x4_t ends_vec3 = vld1q_s32(&ends[j + 3 * simd_width]);
+                        int32x4_t ends_vec4 = vld1q_s32(&ends[j + 4 * simd_width]);
+                        int32x4_t ends_vec5 = vld1q_s32(&ends[j + 5 * simd_width]);
+                        int32x4_t ends_vec6 = vld1q_s32(&ends[j + 6 * simd_width]);
+                        int32x4_t ends_vec7 = vld1q_s32(&ends[j + 7 * simd_width]);
+
+                        // Compare all vectors
+                        uint32x4_t mask0 = vcgtq_s32(start_vec, ends_vec0);
+                        uint32x4_t mask1 = vcgtq_s32(start_vec, ends_vec1);
+                        uint32x4_t mask2 = vcgtq_s32(start_vec, ends_vec2);
+                        uint32x4_t mask3 = vcgtq_s32(start_vec, ends_vec3);
+                        uint32x4_t mask4 = vcgtq_s32(start_vec, ends_vec4);
+                        uint32x4_t mask5 = vcgtq_s32(start_vec, ends_vec5);
+                        uint32x4_t mask6 = vcgtq_s32(start_vec, ends_vec6);
+                        uint32x4_t mask7 = vcgtq_s32(start_vec, ends_vec7);
+
+                        // Convert to boolean masks
+                        uint32x4_t bool_mask0 = vaddq_u32(mask0, ones);
+                        uint32x4_t bool_mask1 = vaddq_u32(mask1, ones);
+                        uint32x4_t bool_mask2 = vaddq_u32(mask2, ones);
+                        uint32x4_t bool_mask3 = vaddq_u32(mask3, ones);
+                        uint32x4_t bool_mask4 = vaddq_u32(mask4, ones);
+                        uint32x4_t bool_mask5 = vaddq_u32(mask5, ones);
+                        uint32x4_t bool_mask6 = vaddq_u32(mask6, ones);
+                        uint32x4_t bool_mask7 = vaddq_u32(mask7, ones);
+
+                        // Sum all lanes and accumulate
+                        size_t count = vaddvq_u32(bool_mask0) + vaddvq_u32(bool_mask1) +
+                                       vaddvq_u32(bool_mask2) + vaddvq_u32(bool_mask3) +
+                                       vaddvq_u32(bool_mask4) + vaddvq_u32(bool_mask5) +
+                                       vaddvq_u32(bool_mask6) + vaddvq_u32(bool_mask7);
+
+                        found += count;
+                        i -= block;
+                        if (count < block) {
+                            break;
+                        }
                     }
                 }
-#endif
+                #endif
             } else {
                 if (branch[i] == SIZE_MAX) {
                     return found;
@@ -698,6 +796,8 @@ class IntervalMap {
     }
 
     protected:
+
+    enum class simd_kind { none, avx2, neon };
 
     std::vector<Interval<S, T>> tmp;
 

@@ -2,19 +2,55 @@
 % Please edit documentation in R/superintervalsr.R
 \name{IntervalMap}
 \alias{IntervalMap}
+\alias{IntervalMap.default}
+\alias{IntervalMap.GRanges}
+\alias{IntervalMap.data.frame}
 \title{Create a new IntervalMap}
 \usage{
-IntervalMap()
+IntervalMap(x, ...)
+
+\method{IntervalMap}{default}(x = NULL, ...)
+
+\method{IntervalMap}{GRanges}(x, value_column = NULL, seqname = NULL, ...)
+
+\method{IntervalMap}{data.frame}(
+  x,
+  start_column = "start",
+  end_column = "end",
+  value_column = NULL,
+  ...
+)
+}
+\arguments{
+\item{x}{Input object. Can be missing (creates empty map), GRanges, or data.frame}
+
+\item{...}{Additional arguments passed to specific methods}
+
+\item{value_column}{Name of column to use as values (default: use all other columns as named list)}
+
+\item{seqname}{Optional chromosome name to filter to (e.g., "chr1")}
+
+\item{start_column}{Name of start column (default: "start")}
+
+\item{end_column}{Name of end column (default: "end")}
 }
 \value{
 An IntervalMap object
 }
 \description{
 Creates a new IntervalMap object for storing and querying intervals efficiently.
+This function uses method dispatch to automatically handle different input types.
 }
 \examples{
-im <- IntervalMap()
-add(im, 1, 10, "gene1")
-add(im, 15, 25, "gene2")
-build(im)
+# Create empty IntervalMap
+im1 <- IntervalMap()
+
+# Create from GRanges
+library(GenomicRanges)
+gr <- GRanges("chr1", IRanges(c(1, 10), c(5, 15)), gene_id = c("A", "B"))
+im2 <- IntervalMap(gr, value_column = "gene_id")
+
+# Create from data.frame
+df <- data.frame(start = c(1, 10), end = c(5, 15), gene = c("A", "B"))
+im3 <- IntervalMap(df, value_column = "gene")
 }

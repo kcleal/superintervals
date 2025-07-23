@@ -1,0 +1,356 @@
+---
+title: "SuperIntervals with Bioconductor: Real-World Genomics Workflows"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SuperIntervals with Bioconductor: Real-World Genomics Workflows}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## Introduction
+
+SuperIntervals provides fast interval
+queries that seamlessly integrate with Bioconductor workflows.
+This vignette demonstrates practical genomics applications,
+showing how SuperIntervals works alongside `GenomicRanges` and `IRanges`.
+
+```{r setup, message=FALSE, warning=FALSE}
+library(superintervalsr)
+library(GenomicRanges)
+library(IRanges)
+```
+
+## Creating Test Data
+
+Let's first create some realistic genomic data:
+
+```{r simulate_data}
+set.seed(123)
+
+# Simulate genes on chromosome 1
+chr1_length <- 249000000
+n_genes <- 2000
+
+# Create realistic gene distribution with clustering
+gene_starts <- sort(sample(1:(chr1_length - 50000), n_genes))
+gene_lengths <- sample(c(
+  sample(1000:5000, n_genes * 0.6, replace = TRUE),   # Short genes
+  sample(5000:50000, n_genes * 0.3, replace = TRUE),  # Medium genes
+  sample(50000:200000, n_genes * 0.1, replace = TRUE) # Long genes
+), n_genes)
+
+genes <- GRanges(
+  seqnames = "chr1",
+  ranges = IRanges(start = gene_starts, width = gene_lengths),
+  gene_id = paste0("GENE", sprintf("%04d", 1:n_genes)),
+  gene_type = sample(c("protein_coding", "lncRNA", "pseudogene"),
+                    n_genes, replace = TRUE, prob = c(0.7, 0.2, 0.1)),
+  expression = round(runif(n_genes, 0, 1000), 1)
+)
+
+# Create ChIP-seq peaks
+n_peaks <- 5000
+peak_starts <- sort(sample(1:(chr1_length - 2000), n_peaks))
+peak_widths <- sample(200:2000, n_peaks, replace = TRUE)
+
+peaks <- GRanges(
+  seqnames = "chr1",
+  ranges = IRanges(start = peak_starts, width = peak_widths),
+  peak_id = paste0("peak_", 1:n_peaks),
+  score = round(runif(n_peaks, 10, 1000), 1)
+)
+
+cat("Created", length(genes), "genes and", length(peaks), "peaks\n")
+```
+
+## Core Workflow: From GRanges to IntervalMap
+
+The typical SuperIntervals workflow involves converting `GRanges` objects to `IntervalMap` for fast queries, then optionally converting results back to `GRanges` for downstream analysis.
+
+```{r core_workflow}
+# Convert GRanges to IntervalMap for fast queries
+gene_imap <- IntervalMap(genes, value_column = "gene_id", seqname = "chr1")
+
+# The IntervalMap is ready to use (no need to call build())
+cat("IntervalMap created with", length(gene_imap), "intervals\n")
+
+# Basic queries
+query_start <- 50000000
+query_end <- 60000000
+
+# Find overlapping genes
+overlapping_indices <- search_idxs(gene_imap, query_start, query_end)
+cat("Found", length(overlapping_indices), "genes in region", query_start, "-", query_end, "\n")
+
+# Get the actual overlapping genes using indices
+region_genes_gr <- genes[overlapping_indices]
+
+cat("Retrieved", length(region_genes_gr), "genes with all original metadata\n")
+print(head(region_genes_gr, 3))
+```
+
+## Use Case 1: Finding Genes in Multiple Regions
+
+A common workflow is finding genes in specific regions using batch functions.
+
+```{r gene_annotation}
+# Define regions of interest (e.g., from GWAS hits)
+gwas_regions <- GRanges(
+  seqnames = "chr1",
+  ranges = IRanges(
+    start = c(10000000, 80000000, 150000000),
+    end = c(12000000, 85000000, 155000000)
+  ),
+  snp_id = c("rs123", "rs456", "rs789")
+)
+
+cat("Analyzing", length(gwas_regions), "GWAS regions\n")
+
+# Use batch functions for efficient analysis of all regions at once
+gene_indices_batch <- search_idxs.batch(gene_imap, start(gwas_regions), end(gwas_regions))
+gene_counts_batch <- count.batch(gene_imap, start(gwas_regions), end(gwas_regions))
+
+# Display results for each region
+for (i in seq_along(gwas_regions)) {
+  region <- gwas_regions[i]
+  gene_indices <- gene_indices_batch[[i]]
+  gene_count <- gene_counts_batch[i]
+
+  cat("Region", i, "(", mcols(region)$snp_id, "):",
+      start(region), "-", end(region), "\n")
+  cat("  Found", gene_count, "genes\n")
+
+  if (length(gene_indices) > 0) {
+    # Get the actual genes
+    region_genes <- genes[gene_indices]
+    cat("  Gene IDs:", paste(head(mcols(region_genes)$gene_id, 3), collapse = ", "),
+        ifelse(length(gene_indices) > 3, "...", ""), "\n")
+  }
+  cat("\n")
+}
+```
+
+## Use Case 2: Peak Overlap Analysis
+
+Analyze overlaps between different ChIP-seq experiments using SuperIntervals.
+
+```{r multi_sample_peaks}
+# Create two peak sets for comparison
+set.seed(456)
+
+# H3K4me3 peaks (active promoters)
+h3k4me3_peaks <- GRanges(
+  seqnames = "chr1",
+  ranges = IRanges(
+    start = sample(1:(chr1_length-1000), 2000),
+    width = sample(200:1000, 2000, replace = TRUE)
+  ),
+  peak_id = paste0("H3K4me3_", 1:2000)
+)
+
+# H3K27ac peaks (active enhancers)
+h3k27ac_peaks <- GRanges(
+  seqnames = "chr1",
+  ranges = IRanges(
+    start = sample(1:(chr1_length-1000), 1800),
+    width = sample(200:1000, 1800, replace = TRUE)
+  ),
+  peak_id = paste0("H3K27ac_", 1:1800)
+)
+
+cat("H3K4me3:", length(h3k4me3_peaks), "peaks\n")
+cat("H3K27ac:", length(h3k27ac_peaks), "peaks\n")
+
+# Convert to IntervalMaps
+h3k4me3_imap <- IntervalMap(h3k4me3_peaks, value_column = "peak_id", seqname = "chr1")
+h3k27ac_imap <- IntervalMap(h3k27ac_peaks, value_column = "peak_id", seqname = "chr1")
+
+# Find H3K4me3 peaks that overlap with H3K27ac using batch functions
+overlapping_indices <- search_idxs.batch(
+  h3k27ac_imap,
+  start(h3k4me3_peaks),
+  end(h3k4me3_peaks)
+)
+
+# Count overlaps
+overlap_counts <- lengths(overlapping_indices)
+has_overlap <- overlap_counts > 0
+n_overlapping <- sum(has_overlap)
+
+cat("\nOverlap analysis:\n")
+cat("H3K4me3 peaks with H3K27ac overlap:", n_overlapping, "out of", length(h3k4me3_peaks), "\n")
+cat("Percentage:", round(100 * n_overlapping / length(h3k4me3_peaks), 1), "%\n")
+```
+
+## Use Case 3: Distance-Based Gene Association
+
+Find genes within a specific distance of peaks using SuperIntervals.
+
+```{r enhancer_gene}
+# Define search distance
+max_distance <- 50000
+
+# Create expanded search windows around peaks
+peak_subset <- h3k27ac_peaks[1:100]  # Use subset for demonstration
+search_starts <- pmax(1, start(peak_subset) - max_distance)
+search_ends <- end(peak_subset) + max_distance
+
+cat("Finding genes within", max_distance/1000, "kb of", length(peak_subset), "peaks\n")
+
+# Use batch search to find nearby genes
+nearby_gene_indices <- search_idxs.batch(gene_imap, search_starts, search_ends)
+nearby_gene_counts <- count.batch(gene_imap, search_starts, search_ends)
+
+# Summarize results
+total_associations <- sum(nearby_gene_counts)
+peaks_with_genes <- sum(nearby_gene_counts > 0)
+
+cat("Results:\n")
+cat("  Total peak-gene associations:", total_associations, "\n")
+cat("  Peaks with nearby genes:", peaks_with_genes, "out of", length(peak_subset), "\n")
+cat("  Average genes per peak:", round(mean(nearby_gene_counts), 2), "\n")
+
+# Show examples
+cat("\nExample associations:\n")
+for (i in 1:min(5, length(peak_subset))) {
+  if (nearby_gene_counts[i] > 0) {
+    gene_indices <- nearby_gene_indices[[i]]
+    nearby_genes <- genes[gene_indices]
+    cat("Peak", i, "->", nearby_gene_counts[i], "genes:",
+        paste(head(mcols(nearby_genes)$gene_id, 3), collapse = ", "),
+        ifelse(nearby_gene_counts[i] > 3, "...", ""), "\n")
+  }
+}
+```
+
+## Batch Processing and Performance
+
+SuperIntervals really shines when processing many queries simultaneously.
+The batch functions are optimized to minimize call overhead and are much faster.
+
+```{r batch_processing_expanded}
+# Simulate query regions (e.g., from another ChIP-seq experiment)
+n_queries <- 20000
+query_starts <- sample(1:(chr1_length - 10000), n_queries)
+query_regions <- GRanges(
+  seqnames = "chr1",
+  ranges = IRanges(start = query_starts, width = 5000),
+  region_id = paste0("region_", 1:n_queries)
+)
+
+cat("Processing", n_queries, "query regions\n")
+
+# Demonstrate different batch operations
+
+# 1. Batch counting - most common operation
+gene_counts <- count.batch(gene_imap, start(query_regions), end(query_regions))
+
+# 2. Batch index search - for detailed analysis
+gene_indices_batch <- search_idxs.batch(gene_imap, start(query_regions), end(query_regions))
+
+# Analyze batch results
+overlapping_queries <- sum(lengths(gene_indices_batch) > 0)
+max_genes_per_query <- max(lengths(gene_indices_batch))
+
+cat("Batch results:\n")
+cat("  Queries with overlapping genes:", overlapping_queries, "out of", n_queries, "\n")
+cat("  Maximum genes per query:", max_genes_per_query, "\n")
+cat("  Average genes per query:", round(mean(lengths(gene_indices_batch)), 2), "\n")
+
+# Add results to query regions
+mcols(query_regions)$gene_count <- gene_counts
+
+# Show distribution of gene counts
+gene_count_table <- table(gene_counts)
+cat("\nGene count distribution:\n")
+print(head(gene_count_table, 10))
+```
+
+### Performance Benchmarking: Batch vs Individual Operations
+
+```{r batch_performance}
+# Performance comparison: batch vs individual operations
+test_queries <- query_regions
+
+cat("Comparing individual vs batch operations on", length(test_queries), "queries:\n\n")
+
+# Individual counting
+time_individual_count <- system.time({
+individual_counts <- sapply(1:length(test_queries), function(i) {
+  count(gene_imap, start(test_queries)[i], end(test_queries)[i])
+})
+})
+
+# Batch counting
+time_batch_count <- system.time({
+batch_counts <- count.batch(gene_imap, start(test_queries), end(test_queries))
+})
+
+# Individual searching
+time_individual_search <- system.time({
+individual_searches <- lapply(1:length(test_queries), function(i) {
+  search_idxs(gene_imap, start(test_queries)[i], end(test_queries)[i])
+})
+})
+
+# Batch searching
+time_batch_search <- system.time({
+batch_searches <- search_idxs.batch(gene_imap, start(test_queries), end(test_queries))
+})
+
+# Results comparison
+cat("COUNTING OPERATIONS:\n")
+cat("  Individual count() calls:", round(time_individual_count[["elapsed"]], 6), "seconds\n")
+cat("  Batch count.batch():", round(time_batch_count[["elapsed"]], 6), "seconds\n")
+count_speedup <- time_individual_count[["elapsed"]] / time_batch_count[["elapsed"]]
+cat("  Speedup:", round(count_speedup, 1), "x faster\n\n")
+
+cat("SEARCH OPERATIONS:\n")
+cat("  Individual search_idxs() calls:", round(time_individual_search[["elapsed"]], 6), "seconds\n")
+cat("  Batch search_idxs.batch():", round(time_batch_search[["elapsed"]], 6), "seconds\n")
+search_speedup <- time_individual_search[["elapsed"]] / time_batch_search[["elapsed"]]
+cat("  Speedup:", round(search_speedup, 1), "x faster\n\n")
+
+# Verify results are identical
+if (all(individual_counts == batch_counts)) {
+cat("✓ Count results identical between individual and batch methods\n")
+}
+
+if (all(lengths(individual_searches) == lengths(batch_searches))) {
+cat("✓ Search results identical between individual and batch methods\n")
+}
+```
+
+## Performance Comparison
+
+Here's a brief comparison showing SuperIntervals' performance advantages:
+
+```{r performance}
+
+# Time standard approach
+time_standard <- system.time({
+standard_counts <- countOverlaps(peaks, genes)
+})
+
+# Time SuperIntervals approach using batch functions
+time_super <- system.time({
+super_counts <- count.batch(gene_imap, start(peaks), end(peaks))
+})
+
+cat("Standard countOverlaps:", round(time_standard[["elapsed"]], 6), "seconds\n")
+cat("SuperIntervals count.batch:", round(time_super[["elapsed"]], 6), "seconds\n")
+
+if (all(standard_counts == super_counts)) {
+speedup <- time_standard[["elapsed"]] / time_super[["elapsed"]]
+cat("✓ Results identical, SuperIntervals is", round(speedup, 1), "x faster\n")
+}
+```

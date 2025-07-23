@@ -28,7 +28,10 @@ Suggests:
     rmarkdown,
     testthat (>= 3.0.0),
     microbenchmark,
-    IRanges
+    IRanges,
+    GenomicRanges,
+    S4Vectors,
+    pryr
 SystemRequirements: C++17
 Encoding: UTF-8
 Language: en-US

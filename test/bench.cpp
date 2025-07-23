@@ -204,7 +204,6 @@ void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInte
     a.reserve(10000); b.reserve(10000);
 
     std::cout << name << ",";
-
     index = 0;
     t0 = high_resolution_clock::now();
     for (const auto& item : intervals) {
