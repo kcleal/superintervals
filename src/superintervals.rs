@@ -436,10 +436,7 @@ impl<T: Clone> IntervalMap<T>
                                 let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
                                 let ends_vec = _mm256_loadu_si256(self.ends.as_ptr().add(end_idx) as *const __m256i);
                                 let cmp_mask = _mm256_cmpgt_epi32(start_vec, ends_vec);
-//                                 let mask = _mm256_movemask_epi8(cmp_mask);
                                 let mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_mask));
-                                // Count the number of set bits, each comparison result is 4 bits
-//                                 count += (!mask).count_ones() as usize / 4;
                                 count += 8 - (mask).count_ones() as usize;
                                 j = j.saturating_sub(SIMD_WIDTH);
                             }
@@ -478,9 +475,7 @@ impl<T: Clone> IntervalMap<T>
                             while j > i - BLOCK {
                                 let end_idx = if j >= SIMD_WIDTH { j - SIMD_WIDTH + 1 } else { 0 };
                                 let ends_vec = vld1q_s32(self.ends.as_ptr().add(end_idx) as *const i32);
-//                                 let mask = vcleq_s32(start_vec, ends_vec);
                                 let mask = vcgtq_s32(start_vec, ends_vec);
-//                                 let bool_mask = vandq_u32(mask, ones);
                                 let bool_mask = vaddq_u32(mask, ones);
                                 count += vaddvq_u32(bool_mask) as usize;
                                 j = j.saturating_sub(SIMD_WIDTH);
