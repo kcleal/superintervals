@@ -1,4 +1,4 @@
-// Version 0.3.4
+// Version 0.3.5
 #pragma once
 
 #include <algorithm>
@@ -54,7 +54,7 @@ class IntervalMap {
     #elif defined(__ARM_NEON)
         alignas(16) std::vector<S> ends;
     #else
-        alignas(sizeof(S)) std::vector<S> ends;
+        std::vector<S> ends;
     #endif
     std::vector<size_t> branch;
     std::vector<T> data;
@@ -268,7 +268,7 @@ class IntervalMap {
         size_t length = starts.size();
         size_t idx = 0;
         while (length > 1) {
-            size_t half = length / 2;
+            const size_t half = length / 2;
             idx += (starts[idx + half] <= value) * (length - half);
             length = half;
         }
@@ -299,7 +299,7 @@ class IntervalMap {
         // Now do binary search in the range
         size_t length = search_right - left;
         while (length > 1) {
-            size_t half = length / 2;
+            const size_t half = length / 2;
             left += (starts[left + half] < value) * (length - half);
             length = half;
         }
@@ -318,7 +318,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -353,7 +353,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -388,7 +388,7 @@ class IntervalMap {
         if (starts.empty()) {
             return 0;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return 0;
         }
@@ -599,7 +599,7 @@ class IntervalMap {
         if (starts.empty()) {
             return 0;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return 0;
         }
@@ -630,7 +630,7 @@ class IntervalMap {
         if (starts.empty()) {
             return false;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         return idx != SIZE_MAX && start <= ends[idx];
     }
 
@@ -644,7 +644,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -678,7 +678,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -711,7 +711,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
