@@ -388,7 +388,7 @@ class IntervalMap {
         if (starts.empty()) {
             return 0;
         }
-        const size_t idx = upper_bound(end);
+        size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return 0;
         }
