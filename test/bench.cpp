@@ -220,6 +220,9 @@ void run_SuperIntervals(std::vector<BedInterval>& intervals, std::vector<BedInte
         itv.search_values(item.start, item.end - 1, a);
         found += a.size();
         a.clear();
+//        for (size_t idx: itv.search_idxs(item.start, item.end - 1)) {
+//            found += 1;
+//        }
     }
     std::cerr << uSec(t1) << "," << found << ",";  // find all overlapping
 

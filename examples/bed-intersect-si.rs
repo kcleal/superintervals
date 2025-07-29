@@ -156,6 +156,9 @@ fn query_bed_files(filename_a: &str, filename_b: &str) -> Result<(), GenericErro
         intervals.search_values(first, last, &mut results);
         total_found += results.len();
         results.clear();
+//         for _value in intervals.search_keys_iter(first, last) {
+//             total_found += 1;
+//         }
     }
     eprint!("{},{},", now.elapsed().as_micros(), total_found);
     std::io::stderr().flush().unwrap();

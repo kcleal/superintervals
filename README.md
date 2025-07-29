@@ -55,7 +55,7 @@ imap.search_values(4, 9, results);
 ```
 
 C++ API documentation can be found here:
-https://github.com/kcleal/superintervals/blob/main/src/README.md
+https://github.com/kcleal/superintervals/blob/main/src/README_cpp.md
 
 
 ## Rust
@@ -73,7 +73,7 @@ imap.search_values(4, 11, &mut results);
 ```
 
 Rust API documentation can be found here:
-https://github.com/kcleal/superintervals/blob/main/src/README.md
+https://github.com/kcleal/superintervals/blob/main/src/README_rust.md
 
 
 

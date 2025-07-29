@@ -15,7 +15,6 @@ pub struct Interval<T> {
 }
 
 
-
 #[cfg(target_feature = "avx2")]
 type AlignedEnds = AVec<i32, ConstAlign<32>>;
 
@@ -228,44 +227,6 @@ impl<T: Clone> IntervalMap<T>
             idx != usize::MAX && start <= *self.ends.get_unchecked(idx)
         }
     }
-
-    fn setup_search(&self, start: i32, end: i32) -> Option<usize> {  // Return Option<usize>
-        if self.starts.is_empty() {
-            return None;
-        }
-        let idx = self.upper_bound(end);
-        if idx == usize::MAX {
-            return None;
-        }
-        unsafe {
-            if start > *self.ends.get_unchecked(idx) || *self.starts.get_unchecked(0) > end {
-                return None;
-            }
-        }
-        Some(idx)
-    }
-
-    // Iterator over indices
-    // for idx in tree.search_idxs_iter(10, 20) { ... }
-    pub fn search_idxs_iter(&self, start: i32, end: i32) -> IndexIterator<T> {
-        let current_idx = self.setup_search(start, end).unwrap_or(usize::MAX);
-        IndexIterator {
-            tree: self,
-            current_idx,
-            query_start: start,
-        }
-    }
-
-    // Iterator over intervals
-    pub fn search_items_iter(&self, start: i32, end: i32) -> ItemIterator<T> {
-        let current_idx = self.setup_search(start, end).unwrap_or(usize::MAX);
-        ItemIterator {
-            tree: self,
-            current_idx,
-            query_start: start,
-        }
-    }
-
 
 //     This is the simple algorithm, but suffers performance wise due to the branching
 //     pub fn find_overlaps(&mut self, start: i32, end: i32, found: &mut Vec<T>) {
@@ -857,6 +818,8 @@ impl<T: Clone> IntervalMap<T>
     }
 }
 
+// Iterator interfaces
+
 pub struct IndexIterator<'a, T> {
     tree: &'a IntervalMap<T>,
     current_idx: usize,
@@ -865,19 +828,32 @@ pub struct IndexIterator<'a, T> {
 
 impl<'a, T: Clone> Iterator for IndexIterator<'a, T> {
     type Item = usize;
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_idx == usize::MAX {
             return None;
         }
-        let result = self.current_idx;
         unsafe {
+            // Linear scan backwards
             if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                let value = self.current_idx;
                 self.current_idx = self.current_idx.wrapping_sub(1);
-            } else {
+                return Some(value);
+            }
+            // Traverse branch array
+            loop {
                 self.current_idx = *self.tree.branch.get_unchecked(self.current_idx);
+                if self.current_idx == usize::MAX {
+                    break;
+                }
+                if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                    let value = self.current_idx;
+                    self.current_idx = self.current_idx.wrapping_sub(1);
+                    return Some(value);
+                }
             }
         }
-        Some(result)
+        None
     }
 }
 
@@ -889,22 +865,172 @@ pub struct ItemIterator<'a, T> {
 
 impl<'a, T: Clone> Iterator for ItemIterator<'a, T> {
     type Item = Interval<T>;
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_idx == usize::MAX {
             return None;
         }
-        let result = Interval {
-            start: self.tree.starts[self.current_idx],
-            end: self.tree.ends[self.current_idx],
-            data: self.tree.data[self.current_idx].clone(),
-        };
         unsafe {
             if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                let value = Interval {
+                    start: *self.tree.starts.get_unchecked(self.current_idx),
+                    end: *self.tree.ends.get_unchecked(self.current_idx),
+                    data: self.tree.data.get_unchecked(self.current_idx).clone(),
+                };
                 self.current_idx = self.current_idx.wrapping_sub(1);
-            } else {
+                return Some(value);
+            }
+            loop {
                 self.current_idx = *self.tree.branch.get_unchecked(self.current_idx);
+                if self.current_idx == usize::MAX {
+                    break;
+                }
+                if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                    let value = Interval {
+                        start: *self.tree.starts.get_unchecked(self.current_idx),
+                        end: *self.tree.ends.get_unchecked(self.current_idx),
+                        data: self.tree.data.get_unchecked(self.current_idx).clone(),
+                    };
+                    self.current_idx = self.current_idx.wrapping_sub(1);
+                    return Some(value);
+                }
             }
         }
-        Some(result)
+        None
+    }
+}
+
+pub struct KeyIterator<'a, T> {
+    tree: &'a IntervalMap<T>,
+    current_idx: usize,
+    query_start: i32,
+}
+
+impl<'a, T: Clone> Iterator for KeyIterator<'a, T> {
+    type Item = (i32, i32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_idx == usize::MAX {
+            return None;
+        }
+        unsafe {
+            if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                let value = (
+                    *self.tree.starts.get_unchecked(self.current_idx),
+                    *self.tree.ends.get_unchecked(self.current_idx),
+                );
+                self.current_idx = self.current_idx.wrapping_sub(1);
+                return Some(value);
+            }
+            loop {
+                self.current_idx = *self.tree.branch.get_unchecked(self.current_idx);
+                if self.current_idx == usize::MAX {
+                    break;
+                }
+                if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                    let value = (
+                        *self.tree.starts.get_unchecked(self.current_idx),
+                        *self.tree.ends.get_unchecked(self.current_idx),
+                    );
+                    self.current_idx = self.current_idx.wrapping_sub(1);
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct ValueIterator<'a, T> {
+    tree: &'a IntervalMap<T>,
+    current_idx: usize,
+    query_start: i32,
+}
+
+impl<'a, T: Clone> Iterator for ValueIterator<'a, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_idx == usize::MAX {
+            return None;
+        }
+        unsafe {
+            if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                let value = self.tree.data.get_unchecked(self.current_idx).clone();
+                self.current_idx = self.current_idx.wrapping_sub(1);
+                return Some(value);
+            }
+            loop {
+                self.current_idx = *self.tree.branch.get_unchecked(self.current_idx);
+                if self.current_idx == usize::MAX {
+                    break;
+                }
+                if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
+                    let value = self.tree.data.get_unchecked(self.current_idx).clone();
+                    self.current_idx = self.current_idx.wrapping_sub(1);
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+}
+
+// Updated iterator creation methods for IntervalMap
+impl<T: Clone> IntervalMap<T> {
+    /// Returns an iterator over indices of intervals that intersect [start, end]
+    pub fn search_idxs_iter(&self, start: i32, end: i32) -> IndexIterator<T> {
+        let current_idx = if self.starts.is_empty() {
+            usize::MAX
+        } else {
+            self.upper_bound(end)
+        };
+        IndexIterator {
+            tree: self,
+            current_idx,
+            query_start: start,
+        }
+    }
+
+    /// Returns an iterator over items (intervals with data) that intersect [start, end]
+    pub fn search_items_iter(&self, start: i32, end: i32) -> ItemIterator<T> {
+        let current_idx = if self.starts.is_empty() {
+            usize::MAX
+        } else {
+            self.upper_bound(end)
+        };
+        ItemIterator {
+            tree: self,
+            current_idx,
+            query_start: start,
+        }
+    }
+
+    /// Returns an iterator over keys (interval start/end pairs) that intersect [start, end]
+    pub fn search_keys_iter(&self, start: i32, end: i32) -> KeyIterator<T> {
+        let current_idx = if self.starts.is_empty() {
+            usize::MAX
+        } else {
+            self.upper_bound(end)
+        };
+        KeyIterator {
+            tree: self,
+            current_idx,
+            query_start: start,
+        }
+    }
+
+    /// Returns an iterator over values (data) of intervals that intersect [start, end]
+    pub fn search_values_iter(&self, start: i32, end: i32) -> ValueIterator<T> {
+        let current_idx = if self.starts.is_empty() {
+            usize::MAX
+        } else {
+            self.upper_bound(end)
+        };
+        ValueIterator {
+            tree: self,
+            current_idx,
+            query_start: start,
+        }
     }
 }

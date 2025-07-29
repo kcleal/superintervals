@@ -1,4 +1,4 @@
-// Version 0.3.4
+// Version 0.3.6
 #pragma once
 
 #include <algorithm>
@@ -54,7 +54,7 @@ class IntervalMap {
     #elif defined(__ARM_NEON)
         alignas(16) std::vector<S> ends;
     #else
-        alignas(sizeof(S)) std::vector<S> ends;
+        std::vector<S> ends;
     #endif
     std::vector<size_t> branch;
     std::vector<T> data;
@@ -152,53 +152,59 @@ class IntervalMap {
     class IndexIterator {
     public:
         IndexIterator(const IntervalMap* parent, size_t pos, S query_start)
-            : parent_(parent), pos_(pos), query_start_(query_start) {}
+            : parent_(parent), current_pos_(pos), query_start_(query_start),
+              has_value_(false), value_(0) {
+            next();
+        }
 
-        size_t operator*() const { return pos_; }
+        size_t operator*() const { return value_; }
+
         IndexIterator& operator++() {
-            if (pos_ != SIZE_MAX) {
-                if (query_start_ <= parent_->ends[pos_]) {
-                    --pos_;
-                } else {
-                    pos_ = parent_->branch[pos_];
+            next();
+            return *this;
+        }
+
+        bool operator!=(const IndexIterator& other) const {
+            return has_value_ != other.has_value_;
+        }
+
+        bool operator==(const IndexIterator& other) const {
+            return has_value_ == other.has_value_;
+        }
+
+    private:
+        void next() const {
+            if (current_pos_ == SIZE_MAX) {
+                has_value_ = false;
+                return;
+            }
+            if (query_start_ <= parent_->ends[current_pos_]) {
+                value_ = parent_->data[current_pos_];
+                current_pos_ -= 1;
+                has_value_ = true;
+                return;
+            }
+            while (true) {
+                current_pos_ =parent_->branch[current_pos_];
+                if (current_pos_ == SIZE_MAX) {
+                    break;
+                }
+                if (query_start_ <= parent_->ends[current_pos_]) {
+                    value_ = parent_->data[current_pos_];
+                    current_pos_ -= 1;
+                    has_value_ = true;
+                    return;
                 }
             }
-            return *this;
+            has_value_ = false;
+            return;
         }
-        bool operator!=(const IndexIterator& other) const {
-            return pos_ != other.pos_;
-        }
-        bool operator==(const IndexIterator& other) const {
-            return pos_ == other.pos_;
-        }
-        const IntervalMap* parent_;
-        size_t pos_;
-        S query_start_;
-    };
 
-    class ItemIterator {
-    public:
-        ItemIterator(const IntervalMap* parent, size_t pos, S query_start)
-            : index_iter_(parent, pos, query_start) {}
-        Interval<S, T> operator*() const {
-            size_t i = *index_iter_;
-            return Interval<S, T>{
-                index_iter_.parent_->starts[i],
-                index_iter_.parent_->ends[i],
-                index_iter_.parent_->data[i]
-            };
-        }
-        ItemIterator& operator++() {
-            ++index_iter_;
-            return *this;
-        }
-        bool operator!=(const ItemIterator& other) const {
-            return index_iter_ != other.index_iter_;
-        }
-        bool operator==(const ItemIterator& other) const {
-            return index_iter_ == other.index_iter_;
-        }
-        IndexIterator index_iter_;
+        const IntervalMap* parent_;
+        mutable size_t current_pos_;
+        S query_start_;
+        mutable bool has_value_;
+        mutable size_t value_;
     };
 
     class IndexRange {
@@ -206,33 +212,11 @@ class IntervalMap {
         IndexRange(const IntervalMap* parent, S start, S end)
             : parent_(parent), start_(start), end_(end) {}
         IndexIterator begin() const {
-            size_t idx = parent_->upper_bound(end_);
-            if (idx != SIZE_MAX && (start_ > parent_->ends[idx] || parent_->starts[0] > end_)) {
-                idx = SIZE_MAX;
-            }
-            return IndexIterator(parent_, idx, start_);
+            const size_t pos = parent_->starts.empty() ? SIZE_MAX : parent_->upper_bound(end_);
+            return IndexIterator(parent_, pos, start_);
         }
         IndexIterator end() const {
             return IndexIterator(parent_, SIZE_MAX, start_);
-        }
-    private:
-        const IntervalMap* parent_;
-        S start_, end_;
-    };
-
-    class ItemRange {
-    public:
-        ItemRange(const IntervalMap* parent, S start, S end)
-            : parent_(parent), start_(start), end_(end) {}
-        ItemIterator begin() const {
-            size_t idx = parent_->upper_bound(end_);
-            if (idx != SIZE_MAX && (start_ > parent_->ends[idx] || parent_->starts[0] > end_)) {
-                idx = SIZE_MAX;
-            }
-            return ItemIterator(parent_, idx, start_);
-        }
-        ItemIterator end() const {
-            return ItemIterator(parent_, SIZE_MAX, start_);
         }
     private:
         const IntervalMap* parent_;
@@ -248,6 +232,84 @@ class IntervalMap {
     IndexRange search_idxs(S start, S end) const noexcept {
         return IndexRange(this, start, end);
     }
+
+    class ItemIterator {
+    public:
+        ItemIterator(const IntervalMap* parent, size_t pos, S query_start)
+            : parent_(parent), current_pos_(pos), query_start_(query_start),
+              has_value_(false), value_{} {
+            next();
+        }
+
+        size_t operator*() const { return value_; }
+
+        ItemIterator& operator++() {
+            next();
+            return *this;
+        }
+
+        bool operator!=(const ItemIterator& other) const {
+            return has_value_ != other.has_value_;
+        }
+
+        bool operator==(const ItemIterator& other) const {
+            return has_value_ == other.has_value_;
+        }
+
+    private:
+        void next() const {
+            if (current_pos_ == SIZE_MAX) {
+                has_value_ = false;
+                return;
+            }
+            if (query_start_ <= parent_->ends[current_pos_]) {
+                value_.start = parent_->starts[current_pos_];
+                value_.end = parent_->ends[current_pos_];
+                value_.data = parent_->data[current_pos_];
+                current_pos_ -= 1;
+                has_value_ = true;
+                return;
+            }
+            while (true) {
+                current_pos_ =parent_->branch[current_pos_];
+                if (current_pos_ == SIZE_MAX) {
+                    break;
+                }
+                if (query_start_ <= parent_->ends[current_pos_]) {
+                    value_.start = parent_->starts[current_pos_];
+                    value_.end = parent_->ends[current_pos_];
+                    value_.data = parent_->data[current_pos_];
+                    current_pos_ -= 1;
+                    has_value_ = true;
+                    return;
+                }
+            }
+            has_value_ = false;
+            return;
+        }
+
+        const IntervalMap* parent_;
+        mutable size_t current_pos_;
+        S query_start_;
+        mutable bool has_value_;
+        mutable Interval<S, T> value_;
+    };
+
+    class ItemRange {
+    public:
+        ItemRange(const IntervalMap* parent, S start, S end)
+            : parent_(parent), start_(start), end_(end) {}
+        ItemIterator begin() const {
+            const size_t pos = parent_->starts.empty() ? SIZE_MAX : parent_->upper_bound(end_);
+            return ItemIterator(parent_, pos, start_);
+        }
+        ItemIterator end() const {
+            return ItemIterator(parent_, SIZE_MAX, start_);
+        }
+    private:
+        const IntervalMap* parent_;
+        S start_, end_;
+    };
 
     /**
      * @brief Creates a range object for iterating over interval items that intersect [start, end]
@@ -268,7 +330,7 @@ class IntervalMap {
         size_t length = starts.size();
         size_t idx = 0;
         while (length > 1) {
-            size_t half = length / 2;
+            const size_t half = length / 2;
             idx += (starts[idx + half] <= value) * (length - half);
             length = half;
         }
@@ -299,7 +361,7 @@ class IntervalMap {
         // Now do binary search in the range
         size_t length = search_right - left;
         while (length > 1) {
-            size_t half = length / 2;
+            const size_t half = length / 2;
             left += (starts[left + half] < value) * (length - half);
             length = half;
         }
@@ -318,7 +380,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -331,6 +393,8 @@ class IntervalMap {
             return;
         }
         found.insert(found.end(), data.rend() - idx - 1, data.rend() - i - 1);
+        // This is slightly faster, but would lose the sort order:
+        // found.insert(found.end(), data.begin() + i, data.begin() + idx);
         i = branch[i];
         while (i != SIZE_MAX) {
             if (start <= ends[i]) {
@@ -353,7 +417,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -599,7 +663,7 @@ class IntervalMap {
         if (starts.empty()) {
             return 0;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return 0;
         }
@@ -630,7 +694,7 @@ class IntervalMap {
         if (starts.empty()) {
             return false;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         return idx != SIZE_MAX && start <= ends[idx];
     }
 
@@ -644,7 +708,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -678,7 +742,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }
@@ -711,7 +775,7 @@ class IntervalMap {
         if (starts.empty()) {
             return;
         }
-        size_t idx = upper_bound(end);
+        const size_t idx = upper_bound(end);
         if (idx == SIZE_MAX) {
             return;
         }

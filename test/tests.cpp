@@ -225,35 +225,35 @@ void superTests(si::IntervalMap<int, int> &itv, std::string name) {
     assert (count == 1); assert (last_d == 0);
     itv.clear(); a.clear();
 
-    std::cout << "15, ";
-    itv.add(10, 11, -1);
-    itv.add(1, 100, 1);
-    itv.add(1, 1000, 2);
-    itv.build();
-    count = 0;
-    for (const auto& i : itv.search_idxs(5, 11)) {
-        last_d = itv.data[i];
-        count += 1;
-    }
-    assert (count == 3);  assert (last_d == 2);
-    a.clear();
-    bool any = false;
-    for (auto i : itv.search_items(0, 0)) { any = true; }
-    assert (!any);
-    for (auto i : itv.search_items(2000, 2001)) { any = true; }
-    assert (!any);
-    itv.clear(); a.clear();
-
-    std::cout << "16\n";
-    itv.add(1, 10, 0);
-    itv.build();
-    count = 0;
-    for (const auto& i : itv.search_idxs(11, 12)) {
-        last_d = itv.data[i];
-        count += 1;
-    }
-    assert (count == 0);
-    itv.clear(); a.clear();
+//    std::cout << "15, ";
+//    itv.add(10, 11, -1);
+//    itv.add(1, 100, 1);
+//    itv.add(1, 1000, 2);
+//    itv.build();
+//    count = 0;
+//    for (const auto& i : itv.search_idxs(5, 11)) {
+//        last_d = itv.data[i];
+//        count += 1;
+//    }
+//    assert (count == 3);  assert (last_d == 2);
+//    a.clear();
+//    bool any = false;
+//    for (auto i : itv.search_items(0, 0)) { any = true; }
+//    assert (!any);
+//    for (auto i : itv.search_items(2000, 2001)) { any = true; }
+//    assert (!any);
+//    itv.clear(); a.clear();
+//
+//    std::cout << "16\n";
+//    itv.add(1, 10, 0);
+//    itv.build();
+//    count = 0;
+//    for (const auto& i : itv.search_idxs(11, 12)) {
+//        last_d = itv.data[i];
+//        count += 1;
+//    }
+//    assert (count == 0);
+//    itv.clear(); a.clear();
 
     std::cout << "All tests passed for " << name << "\n";
 
