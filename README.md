@@ -6,7 +6,7 @@ SuperIntervals uses a novel superset-index approach that maintains
 intervals in position-sorted order, enabling cache-friendly searches and SIMD-optimized counting.
 
 Available for [C++](#cpp), [Rust](#rust), [Python](#python).
-A version for R can be found at https://github.com/kcleal/superintervalsr.
+The R package is hosted at https://github.com/kcleal/superintervalsr.
 
 ### Features:
 

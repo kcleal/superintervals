@@ -8,13 +8,14 @@ cdef extern from "Python.h":
 
 
 cdef extern from "superintervals.hpp" namespace "si":
+
     cdef cppclass Interval[S, T]:
         S start, end
         T data
         Interval()
         Interval(S s, S e, T d)
 
-    # cdef cppclass IntervalMap[S, T]:
+
     cdef cppclass CppIntervalMap "si::IntervalMap"[S, T]:
         IntervalMap() except +
 
