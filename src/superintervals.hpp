@@ -1,4 +1,4 @@
-// Version 0.3.6
+// Version 0.3.7
 #pragma once
 
 #include <algorithm>
@@ -233,6 +233,177 @@ class IntervalMap {
         return IndexRange(this, start, end);
     }
 
+    class KeyIterator {
+    public:
+        KeyIterator(const IntervalMap* parent, size_t pos, S query_start)
+            : parent_(parent), current_pos_(pos), query_start_(query_start),
+              has_value_(false), value_{} {
+            next();
+        }
+
+        const std::pair<S, S>& operator*() const { return value_; }
+
+        KeyIterator& operator++() {
+            next();
+            return *this;
+        }
+
+        bool operator!=(const KeyIterator& other) const {
+            return has_value_ != other.has_value_;
+        }
+
+        bool operator==(const KeyIterator& other) const {
+            return has_value_ == other.has_value_;
+        }
+
+    private:
+        void next() const {
+            if (current_pos_ == SIZE_MAX) {
+                has_value_ = false;
+                return;
+            }
+            if (query_start_ <= parent_->ends[current_pos_]) {
+                value_.first = parent_->starts[current_pos_];
+                value_.second = parent_->ends[current_pos_];
+                current_pos_ -= 1;
+                has_value_ = true;
+                return;
+            }
+            while (true) {
+                current_pos_ =parent_->branch[current_pos_];
+                if (current_pos_ == SIZE_MAX) {
+                    break;
+                }
+                if (query_start_ <= parent_->ends[current_pos_]) {
+                    value_.first = parent_->starts[current_pos_];
+                    value_.second = parent_->ends[current_pos_];
+                    current_pos_ -= 1;
+                    has_value_ = true;
+                    return;
+                }
+            }
+            has_value_ = false;
+            return;
+        }
+
+        const IntervalMap* parent_;
+        mutable size_t current_pos_;
+        S query_start_;
+        mutable bool has_value_;
+        mutable std::pair<S, S> value_;
+    };
+
+    class KeyRange {
+    public:
+        KeyRange(const IntervalMap* parent, S start, S end)
+            : parent_(parent), start_(start), end_(end) {}
+        KeyIterator begin() const {
+            const size_t pos = parent_->starts.empty() ? SIZE_MAX : parent_->upper_bound(end_);
+            return KeyIterator(parent_, pos, start_);
+        }
+        KeyIterator end() const {
+            return KeyIterator(parent_, SIZE_MAX, start_);
+        }
+    private:
+        const IntervalMap* parent_;
+        S start_, end_;
+    };
+
+    /**
+     * @brief Creates a range object for iterating over interval keys that intersect [start, end]
+     * @param start Start point of the search range
+     * @param end End point of the search range
+     * @return KeyRange object that can be used with range-based for loops
+     */
+    KeyRange search_keys(S start, S end) const noexcept {
+        return KeyRange(this, start, end);
+    }
+
+
+    class ValueIterator {
+    public:
+        ValueIterator(const IntervalMap* parent, size_t pos, S query_start)
+            : parent_(parent), current_pos_(pos), query_start_(query_start),
+              has_value_(false), value_{} {
+            next();
+        }
+
+        const T& operator*() const { return value_; }
+
+        ValueIterator& operator++() {
+            next();
+            return *this;
+        }
+
+        bool operator!=(const ValueIterator& other) const {
+            return has_value_ != other.has_value_;
+        }
+
+        bool operator==(const ValueIterator& other) const {
+            return has_value_ == other.has_value_;
+        }
+
+    private:
+        void next() const {
+            if (current_pos_ == SIZE_MAX) {
+                has_value_ = false;
+                return;
+            }
+            if (query_start_ <= parent_->ends[current_pos_]) {
+                value_ = parent_->data[current_pos_];
+                current_pos_ -= 1;
+                has_value_ = true;
+                return;
+            }
+            while (true) {
+                current_pos_ =parent_->branch[current_pos_];
+                if (current_pos_ == SIZE_MAX) {
+                    break;
+                }
+                if (query_start_ <= parent_->ends[current_pos_]) {
+                    value_ = parent_->data[current_pos_];
+                    current_pos_ -= 1;
+                    has_value_ = true;
+                    return;
+                }
+            }
+            has_value_ = false;
+            return;
+        }
+
+        const IntervalMap* parent_;
+        mutable size_t current_pos_;
+        S query_start_;
+        mutable bool has_value_;
+        mutable T value_;
+    };
+
+    class ValueRange {
+    public:
+        ValueRange(const IntervalMap* parent, S start, S end)
+            : parent_(parent), start_(start), end_(end) {}
+        ValueIterator begin() const {
+            const size_t pos = parent_->starts.empty() ? SIZE_MAX : parent_->upper_bound(end_);
+            return ValueIterator(parent_, pos, start_);
+        }
+        ValueIterator end() const {
+            return ValueIterator(parent_, SIZE_MAX, start_);
+        }
+    private:
+        const IntervalMap* parent_;
+        S start_, end_;
+    };
+
+    /**
+     * @brief Creates a range object for iterating over interval values that intersect [start, end]
+     * @param start Start point of the search range
+     * @param end End point of the search range
+     * @return ValueRange object that can be used with range-based for loops
+     */
+    ValueRange search_values(S start, S end) const noexcept {
+        return ValueRange(this, start, end);
+    }
+
     class ItemIterator {
     public:
         ItemIterator(const IntervalMap* parent, size_t pos, S query_start)
@@ -241,7 +412,7 @@ class IntervalMap {
             next();
         }
 
-        size_t operator*() const { return value_; }
+        const Interval<S, T>& operator*() const { return value_; }
 
         ItemIterator& operator++() {
             next();

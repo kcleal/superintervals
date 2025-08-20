@@ -1,5 +1,10 @@
 # Superintervals rust API
 
+Superintervals implements `IntervalMap` which is a multimap like data structure for 
+interval intersection queries.
+'Keys' correspond to `start` and `end` coordinates of reference intervals 
+of type `i32`. 'Values' are your data of interest of type `T`.
+
 Add to your project using `cargo add superintervals`
 
 ```rust

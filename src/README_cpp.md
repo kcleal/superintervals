@@ -1,7 +1,12 @@
 # Superintervals C++ API
 
+Superintervals implements `IntervalMap` which is a multimap like data structure for 
+interval intersection queries.
+'Keys' correspond to `start` and `end` coordinates of reference intervals 
+of type `S`. 'Values' are your data of interest of type `T`.
 
-Header only implementation, copy to your include directory.
+To install, copy the superintervals.hpp header to your include directory.
+
 
 ```cpp
 #include "SuperIntervals.hpp"
@@ -15,9 +20,10 @@ std::vector<std::string> results;
 imap.search_values(4, 9, results);
 
 // Or use lazy iterator interfaces
-for (const auto &value : imap.search_values_iter(query_start, query_end)) {
+for (const auto &value : imap.search_values(query_start, query_end)) {
     std::cout << "Found: " << value << std::endl;
 }
+// also search_keys, search_idxs, search_items
 ```
 
 ### API Reference
@@ -102,3 +108,10 @@ for (const auto &value : imap.search_values_iter(query_start, query_end)) {
 
 - `ItemRange search_items(S start, S end)`  
   Returns ItemRange for range-based loops over intervals
+
+
+- `KeyRange search_keys(S start, S end)`  
+  Returns KeyRange for range-based loops over intervals
+
+- `ValueRange search_values(S start, S end)`  
+  Returns ValueRange for range-based loops over intervals
