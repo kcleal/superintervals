@@ -794,6 +794,321 @@ impl<T: Clone> IntervalMap<T>
         (count, coverage)
     }
 
+    // -------------------------------------------------------------------------
+    // Set-like operations.
+    //
+    // Each operation returns a NEW IntervalMap that is NOT indexed: build() has
+    // not been called on it. Call build() on the result before querying it (or
+    // before passing it as `other` to another set operation). This keeps
+    // intermediate results in a chain from paying for an index they never use.
+    // Intervals are end-inclusive throughout.
+    //
+    // Two intervals overlap when a.start <= b.end && b.start <= a.end. Merging
+    // coalesces overlapping intervals only; exactly adjacent intervals such as
+    // [1,5] and [6,10] are NOT merged. Callers who want adjacency merging should
+    // widen ends by one before adding.
+    //
+    // Where intervals fold into one output interval, the data payload is decided
+    // by a combiner closure. Variants without the `_with` suffix keep the first
+    // interval's data.
+    // -------------------------------------------------------------------------
+
+    /// Returns indices into starts/ends/data in ascending (start, end) order.
+    /// Cheap when already sorted (the common post-build() case).
+    fn sorted_order(&self) -> Vec<usize> {
+        let mut order: Vec<usize> = (0..self.starts.len()).collect();
+        // start_sorted/end_sorted are maintained incrementally by add()/build(). When
+        // both hold the data is fully (start,end)-ordered, so skip the verification scan
+        // and the sort. (start_sorted alone is insufficient: equal-start intervals may
+        // have unordered ends, which would break callers that need exact grouping.)
+        let mut sorted = self.start_sorted && self.end_sorted;
+        if !sorted {
+            sorted = true;
+            for k in 1..self.starts.len() {
+                if self.starts[k] < self.starts[k - 1]
+                    || (self.starts[k] == self.starts[k - 1] && self.ends[k] < self.ends[k - 1])
+                {
+                    sorted = false;
+                    break;
+                }
+            }
+        }
+        if !sorted {
+            order.sort_by(|&x, &y| {
+                self.starts[x]
+                    .cmp(&self.starts[y])
+                    .then(self.ends[x].cmp(&self.ends[y]))
+            });
+        }
+        order
+    }
+
+    /// Coalesces all stored intervals into a disjoint, non-overlapping set,
+    /// combining the data of merged intervals with `combine`.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn merge_overlaps_with<F>(&self, mut combine: F) -> IntervalMap<T>
+    where
+        F: FnMut(&T, &T) -> T,
+    {
+        let mut out = IntervalMap::new();
+        if self.starts.is_empty() {
+            return out;
+        }
+        let order = self.sorted_order();
+        let mut cur_start = self.starts[order[0]];
+        let mut cur_end = self.ends[order[0]];
+        let mut cur_data = self.data[order[0]].clone();
+        for k in 1..order.len() {
+            let idx = order[k];
+            if self.starts[idx] <= cur_end {
+                if self.ends[idx] > cur_end {
+                    cur_end = self.ends[idx];
+                }
+                cur_data = combine(&cur_data, &self.data[idx]);
+            } else {
+                out.add(cur_start, cur_end, cur_data);
+                cur_start = self.starts[idx];
+                cur_end = self.ends[idx];
+                cur_data = self.data[idx].clone();
+            }
+        }
+        out.add(cur_start, cur_end, cur_data);
+        out
+    }
+
+    /// Coalesces overlapping intervals, keeping the first interval's data.
+    pub fn merge_overlaps(&self) -> IntervalMap<T> {
+        self.merge_overlaps_with(|a, _| a.clone())
+    }
+
+    /// Computes the gaps (uncovered regions) within `[lo, hi]`.
+    /// Gap intervals match no input, so they carry `fill` as their data.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn gaps(&self, lo: i32, hi: i32, fill: T) -> IntervalMap<T> {
+        let mut out = IntervalMap::new();
+        let merged = self.merge_overlaps();
+        let mut cursor = lo;
+        for k in 0..merged.starts.len() {
+            let s = merged.starts[k];
+            let e = merged.ends[k];
+            if e < lo || s > hi {
+                continue;
+            }
+            if s > cursor {
+                out.add(cursor, s - 1, fill.clone());
+            }
+            if e + 1 > cursor {
+                cursor = e + 1;
+            }
+        }
+        if cursor <= hi {
+            out.add(cursor, hi, fill.clone());
+        }
+        out
+    }
+
+    /// Union of this set with another, coalescing overlaps and combining the
+    /// data of merged intervals with `combine`.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn union_with<F>(&self, other: &IntervalMap<T>, combine: F) -> IntervalMap<T>
+    where
+        F: FnMut(&T, &T) -> T,
+    {
+        let mut combined = IntervalMap::new();
+        combined.reserve(self.starts.len() + other.starts.len());
+        for k in 0..self.starts.len() {
+            combined.add(self.starts[k], self.ends[k], self.data[k].clone());
+        }
+        for k in 0..other.starts.len() {
+            combined.add(other.starts[k], other.ends[k], other.data[k].clone());
+        }
+        combined.merge_overlaps_with(combine)
+    }
+
+    /// Union of two sets, keeping the first interval's data on each merge.
+    pub fn union(&self, other: &IntervalMap<T>) -> IntervalMap<T> {
+        self.union_with(other, |a, _| a.clone())
+    }
+
+    /// Intersection of this set with another: every overlapping sub-region.
+    /// `other` must already be built (it is queried via its index). The output
+    /// data of each piece is produced by `combine(a_data, b_data)`.
+    /// The result is NOT coalesced; call merge_overlaps() if a disjoint set is needed.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn intersection_with<F>(&self, other: &IntervalMap<T>, mut combine: F) -> IntervalMap<T>
+    where
+        F: FnMut(&T, &T) -> T,
+    {
+        let mut out = IntervalMap::new();
+        let mut hits: Vec<usize> = Vec::new();
+        for k in 0..self.starts.len() {
+            hits.clear();
+            other.search_idxs(self.starts[k], self.ends[k], &mut hits);
+            for &h in &hits {
+                let s = max(self.starts[k], other.starts[h]);
+                let e = min(self.ends[k], other.ends[h]);
+                if s <= e {
+                    out.add(s, e, combine(&self.data[k], &other.data[h]));
+                }
+            }
+        }
+        out
+    }
+
+    /// Intersection of two sets, keeping this side's data for each piece.
+    pub fn intersection(&self, other: &IntervalMap<T>) -> IntervalMap<T> {
+        self.intersection_with(other, |a, _| a.clone())
+    }
+
+    /// Difference: regions of this set not covered by `other` (A \ B).
+    /// `other` must already be built. Output pieces are sub-ranges of this set's
+    /// intervals and inherit their source data.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn difference(&self, other: &IntervalMap<T>) -> IntervalMap<T> {
+        let mut out = IntervalMap::new();
+        let mut cover: Vec<(i32, i32)> = Vec::new();
+        for k in 0..self.starts.len() {
+            cover.clear();
+            other.search_keys(self.starts[k], self.ends[k], &mut cover);
+            cover.sort();
+            let mut cursor = self.starts[k];
+            for &(cs0, ce0) in &cover {
+                let cs = max(cs0, self.starts[k]);
+                let ce = min(ce0, self.ends[k]);
+                if cs > cursor {
+                    out.add(cursor, cs - 1, self.data[k].clone());
+                }
+                if ce + 1 > cursor {
+                    cursor = ce + 1;
+                }
+            }
+            if cursor <= self.ends[k] {
+                out.add(cursor, self.ends[k], self.data[k].clone());
+            }
+        }
+        out
+    }
+
+    /// Symmetric difference: regions in exactly one of the two sets,
+    /// (A \ B) ∪ (B \ A). Both inputs must already be built.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn symmetric_difference(&self, other: &IntervalMap<T>) -> IntervalMap<T> {
+        let a_minus_b = self.difference(other);
+        let b_minus_a = other.difference(self);
+        a_minus_b.union(&b_minus_a)
+    }
+
+    /// Smallest interval enclosing every stored interval (convex hull / span).
+    /// Returns None for an empty set.
+    pub fn span(&self) -> Option<(i32, i32)> {
+        if self.starts.is_empty() {
+            return None;
+        }
+        let mut lo = self.starts[0];
+        let mut hi = self.ends[0];
+        for k in 1..self.starts.len() {
+            if self.starts[k] < lo {
+                lo = self.starts[k];
+            }
+            if self.ends[k] > hi {
+                hi = self.ends[k];
+            }
+        }
+        Some((lo, hi))
+    }
+
+    /// Grows (or shrinks) every interval, like `bedtools slop`.
+    /// `left` is subtracted from each start, `right` is added to each end;
+    /// negative values shrink (intervals that shrink past themselves are dropped).
+    /// `lo`/`hi` clamp the resulting coordinates. Data is carried over unchanged.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn expand(&self, left: i32, right: i32, lo: i32, hi: i32) -> IntervalMap<T> {
+        let mut out = IntervalMap::new();
+        out.reserve(self.starts.len());
+        for k in 0..self.starts.len() {
+            // saturating arithmetic avoids overflow when lo/hi are the type extremes.
+            let mut s = self.starts[k].saturating_sub(left);
+            if s < lo {
+                s = lo;
+            }
+            let mut e = self.ends[k].saturating_add(right);
+            if e > hi {
+                e = hi;
+            }
+            if s <= e {
+                out.add(s, e, self.data[k].clone());
+            }
+        }
+        out
+    }
+
+    /// Creates flanking intervals beside each interval, like `bedtools flank`.
+    /// Emits the left flank `[start-left, start-1]` and right flank `[end+1, end+right]`
+    /// (NOT the originals). Zero-width or out-of-range flanks are skipped; each flank
+    /// inherits its source interval's data, clamped to `[lo, hi]`.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn flank(&self, left: i32, right: i32, lo: i32, hi: i32) -> IntervalMap<T> {
+        let mut out = IntervalMap::new();
+        for k in 0..self.starts.len() {
+            if left > 0 && self.starts[k] > lo {
+                let le = self.starts[k] - 1;
+                let mut ls = self.starts[k].saturating_sub(left);
+                if ls < lo {
+                    ls = lo;
+                }
+                if ls <= le && le <= hi {
+                    out.add(ls, le, self.data[k].clone());
+                }
+            }
+            if right > 0 && self.ends[k] < hi {
+                let rs = self.ends[k] + 1;
+                let mut re = self.ends[k].saturating_add(right);
+                if re > hi {
+                    re = hi;
+                }
+                if rs <= re && rs >= lo {
+                    out.add(rs, re, self.data[k].clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// Keeps only one interval per distinct (start, end) coordinate pair, folding
+    /// the data of exact duplicates with `combine`. Unlike merge_overlaps(), this
+    /// collapses only EXACT coordinate duplicates; distinct-but-overlapping
+    /// intervals are all preserved. Output is start-sorted.
+    /// Returns a new, UNINDEXED IntervalMap (call build() before querying).
+    pub fn unique_with<F>(&self, mut combine: F) -> IntervalMap<T>
+    where
+        F: FnMut(&T, &T) -> T,
+    {
+        let mut out = IntervalMap::new();
+        if self.starts.is_empty() {
+            return out;
+        }
+        let order = self.sorted_order();
+        let mut run = order[0];
+        let mut acc = self.data[order[0]].clone();
+        for k in 1..order.len() {
+            let idx = order[k];
+            if self.starts[idx] == self.starts[run] && self.ends[idx] == self.ends[run] {
+                acc = combine(&acc, &self.data[idx]);
+            } else {
+                out.add(self.starts[run], self.ends[run], acc);
+                run = idx;
+                acc = self.data[idx].clone();
+            }
+        }
+        out.add(self.starts[run], self.ends[run], acc);
+        out
+    }
+
+    /// Keeps one interval per distinct (start, end) pair, keeping the first data value.
+    pub fn unique(&self) -> IntervalMap<T> {
+        self.unique_with(|a, _| a.clone())
+    }
+
     fn sort_block<F>(&mut self, start_i: usize, end_i: usize, compare: F)
     where
         F: Fn(&Interval<T>, &Interval<T>) -> Ordering,

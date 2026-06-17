@@ -107,6 +107,50 @@ indices = imap.search_idxs_batch(query_starts, query_ends)  # [[0], [0, 1], [2]]
   Args: Memory views (array.array, numpy arrays)  
   Returns: List of lists containing values
 
+#### Set Operations
+
+These build new disjoint interval maps from one or two existing maps. Unlike the C++
+and Rust APIs, the returned map is already built and ready to query. When intervals
+merge, the surviving value defaults to a **tuple** of the merged values (since Python
+data is opaque); pass a `combine(a, b)` callable to override this.
+
+```python
+a = IntervalMap()
+a.add(1, 5, 'x'); a.add(3, 8, 'y'); a.build()
+b = IntervalMap()
+b.add(4, 10, 'B'); b.build()
+
+m = a.merge_overlaps()              # one interval (1, 8); value ('x', 'y')
+m = a.merge_overlaps(lambda p, q: p)  # custom combiner -> keep first
+u = a.union_with(b)                 # a ∪ b
+i = a.intersection(b)               # a ∩ b; values paired (a_val, b_val) by default
+d = a.difference(b)                 # a \ b
+x = a.symmetric_difference(b)       # in exactly one of a, b
+g = a.gaps(0, 100)                  # uncovered regions within [0, 100]
+sp = a.span()                       # (min_start, max_end) or None if empty
+```
+
+- `merge_overlaps(combine=None)`  
+  Collapse self-overlapping intervals; default merges values into a tuple
+
+- `union_with(other, combine=None)`  
+  Union of the two maps
+
+- `intersection(other, combine=None)`  
+  Intersection; default pairs overlapping values as `(a_val, b_val)`
+
+- `difference(other)`  
+  `self \ other`
+
+- `symmetric_difference(other)`  
+  Regions in exactly one of the two maps
+
+- `gaps(lo, hi, fill=None)`  
+  Uncovered regions within `[lo, hi]`
+
+- `span()`  
+  `(min_start, max_end)` tuple, or `None` if empty
+
 ### Performance Tips
 
 - Use `IntervalMap.from_arrays()` for best construction performance

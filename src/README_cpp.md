@@ -115,3 +115,45 @@ for (const auto &value : imap.search_values(query_start, query_end)) {
 
 - `ValueRange search_values(S start, S end)`  
   Returns ValueRange for range-based loops over intervals
+
+### Set Operations
+
+These build new disjoint interval sets from one or two maps. Results are returned
+**unindexed** — call `build()` on the result before querying it (or before passing it
+as `other` to another set operation). The folding operations accept an optional
+`combine` callable `T(const T& a, const T& b)` to decide which value survives when
+intervals merge; the default keeps the first. `gaps`, `difference`, and
+`symmetric_difference` use `±1` and therefore require an integral `S`.
+
+```cpp
+si::IntervalMap<int, std::string> a, b;
+// ... add() intervals to both ...
+a.build(); b.build();
+
+auto merged = a.merge_overlaps();   // collapse self-overlaps
+auto u      = a.union_with(b);      // a ∪ b
+auto i      = a.intersection(b);    // a ∩ b
+auto d      = a.difference(b);      // a \ b
+merged.build();                     // build() before querying a result
+```
+
+- `IntervalMap<S,T> merge_overlaps(Combine combine = keep_first)`  
+  Collapse self-overlapping intervals into a disjoint set
+
+- `IntervalMap<S,T> gaps(S lo, S hi, const T& fill = T{})`  
+  Uncovered regions within `[lo, hi]` (integral `S`)
+
+- `IntervalMap<S,T> union_with(const IntervalMap<S,T>& other, Combine combine = keep_first)`  
+  Union of the two sets
+
+- `IntervalMap<S,T> intersection(const IntervalMap<S,T>& other, Combine combine = keep_first)`  
+  Intersection of the two sets
+
+- `IntervalMap<S,T> difference(const IntervalMap<S,T>& other)`  
+  `this \ other` (integral `S`)
+
+- `IntervalMap<S,T> symmetric_difference(const IntervalMap<S,T>& other)`  
+  Regions in exactly one of the two sets (integral `S`)
+
+- `bool span(std::pair<S,S>& result)`  
+  Fill `result` with `(min start, max end)`; returns `false` if empty

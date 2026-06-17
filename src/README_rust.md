@@ -112,3 +112,49 @@ for value in imap.search_values_iter(query_start, query_end) {
 
 - `fn search_values_iter(&mut self, start: i32, end: i32) -> ValueIterator<T>`  
   Iterator over values
+
+### Set Operations
+
+These build new disjoint interval sets from one or two maps. Results are returned
+**unindexed** — call `build()` on the result before querying it (or before passing it
+as `other` to another set operation). The `_with` variants take a closure
+`FnMut(&T, &T) -> T` to decide which value survives when intervals merge; the plain
+variants default to keeping the first.
+
+```rust
+let mut a = IntervalMap::new();
+let mut b = IntervalMap::new();
+// ... add() intervals to both ...
+a.build();
+b.build();
+
+let mut merged = a.merge_overlaps();   // collapse self-overlaps
+let u          = a.union(&b);          // a ∪ b
+let i          = a.intersection(&b);   // a ∩ b
+let d          = a.difference(&b);     // a \ b
+merged.build();                        // build() before querying a result
+```
+
+- `fn merge_overlaps(&self) -> IntervalMap<T>`  
+  Collapse self-overlapping intervals into a disjoint set
+
+- `fn merge_overlaps_with<F: FnMut(&T,&T)->T>(&self, combine: F) -> IntervalMap<T>`  
+  As above, with a custom value combiner
+
+- `fn gaps(&self, lo: i32, hi: i32, fill: T) -> IntervalMap<T>`  
+  Uncovered regions within `[lo, hi]`
+
+- `fn union(&self, other: &IntervalMap<T>) -> IntervalMap<T>`  
+  Union of the two sets (also `union_with` with a combiner)
+
+- `fn intersection(&self, other: &IntervalMap<T>) -> IntervalMap<T>`  
+  Intersection of the two sets (also `intersection_with` with a combiner)
+
+- `fn difference(&self, other: &IntervalMap<T>) -> IntervalMap<T>`  
+  `self \ other`
+
+- `fn symmetric_difference(&self, other: &IntervalMap<T>) -> IntervalMap<T>`  
+  Regions in exactly one of the two sets
+
+- `fn span(&self) -> Option<(i32, i32)>`  
+  `(min start, max end)`, or `None` if empty

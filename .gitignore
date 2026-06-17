@@ -43,3 +43,6 @@
 /test/3rd-party/rust-lapper_kc/target/
 /test/3rd-party/rust-lapper_kc/benches/
 /test/3rd-party/rust-lapper_kc/images/
+/src/variants/bench2d
+/src/variants/probe2d_buildlog.txt
+/src/variants/probe2d_results.csv
