@@ -6,7 +6,8 @@ ext_modules = [
               ["src/superintervals/intervalmap.pyx"],
               include_dirs=["src"],
               language="c++",
-              extra_compile_args=["-std=c++17"])
+              extra_compile_args=["-std=c++17"],
+              extra_link_args=["-lstdc++"])
 ]
 
 print('PAKCAGES', find_packages(where='src'))  # Add this line for debugging
