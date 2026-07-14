@@ -180,7 +180,7 @@ class IntervalMap {
                 return;
             }
             if (query_start_ <= parent_->ends[current_pos_]) {
-                value_ = parent_->data[current_pos_];
+                value_ = current_pos_;
                 current_pos_ -= 1;
                 has_value_ = true;
                 return;
@@ -191,7 +191,7 @@ class IntervalMap {
                     break;
                 }
                 if (query_start_ <= parent_->ends[current_pos_]) {
-                    value_ = parent_->data[current_pos_];
+                    value_ = current_pos_;
                     current_pos_ -= 1;
                     has_value_ = true;
                     return;
@@ -1019,6 +1019,9 @@ class IntervalMap {
         while (i != SIZE_MAX && point <= ends[i]) {
             found.push_back(data[i]);
             --i;
+        }
+        if (i == SIZE_MAX) {
+            return;
         }
         i = branch[i];
         while (i != SIZE_MAX) {

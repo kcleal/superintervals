@@ -400,7 +400,7 @@ impl<T: Clone> IntervalMap<T>
         let mut found = 0;
 
         unsafe {
-            #[cfg(target_arch = "x86_64")]
+            #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(feature = "nosimd")))]
             {
                 use std::arch::x86_64::*;
                 let start_vec = _mm256_set1_epi32(start);
@@ -476,7 +476,7 @@ impl<T: Clone> IntervalMap<T>
                 }
             }
 
-            #[cfg(target_arch = "aarch64")]
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", not(feature = "nosimd")))]
             {
                 use std::arch::aarch64::*;
                 let start_vec = vdupq_n_s32(start);
@@ -560,7 +560,10 @@ impl<T: Clone> IntervalMap<T>
                 }
             }
 
-            #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "avx2", not(feature = "nosimd")),
+                all(target_arch = "aarch64", target_feature = "neon", not(feature = "nosimd"))
+            )))]
             {
                 const BLOCK: usize = 16;
 

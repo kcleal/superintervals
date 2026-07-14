@@ -57,3 +57,7 @@ bincode = "1.3.3"
 
 [[example]]
 name = "bed-intersect-si"
+
+[[test]]
+name = "set_ops"
+path = "test/set_ops.rs"

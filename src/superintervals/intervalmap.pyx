@@ -208,7 +208,7 @@ cdef class IntervalMap:
         if self.thisptr.data[index] == NULL:
             return None
         else:
-            return self.thisptr.starts[index]
+            return <object> self.thisptr.data[index]
 
     cpdef clear(self):
         """
@@ -314,8 +314,10 @@ cdef class IntervalMap:
         self.thisptr.search_idxs(start, end, self.found_indexes)
         cdef list result = [None] * self.found_indexes.size()
         cdef size_t i
+        cdef size_t idx
         for i in range(self.found_indexes.size()):
-            result[i] = (self.thisptr.starts[i], self.thisptr.ends[i])
+            idx = self.found_indexes[i]
+            result[i] = (self.thisptr.starts[idx], self.thisptr.ends[idx])
         return result
 
     cpdef search_items(self, int start, int end):
@@ -333,11 +335,13 @@ cdef class IntervalMap:
         self.thisptr.search_idxs(start, end, self.found_indexes)
         cdef list result = [None] * self.found_indexes.size()
         cdef size_t i
+        cdef size_t idx
         for i in range(self.found_indexes.size()):
-            if self.thisptr.data[i] != NULL:
-                result[i] = (self.thisptr.starts[i], self.thisptr.ends[i], <object> self.thisptr.data[i])
+            idx = self.found_indexes[i]
+            if self.thisptr.data[idx] != NULL:
+                result[i] = (self.thisptr.starts[idx], self.thisptr.ends[idx], <object> self.thisptr.data[idx])
             else:
-                result[i] = (self.thisptr.starts[i], self.thisptr.ends[i], None)
+                result[i] = (self.thisptr.starts[idx], self.thisptr.ends[idx], None)
         return result
 
     cpdef coverage(self, int start, int end):
