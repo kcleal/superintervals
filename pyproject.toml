@@ -12,3 +12,9 @@ version = "1.0.2"
 description = "Rapid interval intersections"
 dependencies = ['Cython']
 authors = [{name = "Kez Cleal", email = "clealk@cardiff.ac.uk"}]
+
+[tool.cibuildwheel]
+build = ["cp39-*", "cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*", "cp315-*"]
+archs = ["auto64"]
+test-requires = ["pytest"]
+test-command = "pytest {project}/test/test_intervalmap.py"
