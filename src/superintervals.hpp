@@ -866,8 +866,14 @@ class IntervalMap {
         if (starts.empty()) {
             return false;
         }
-        const size_t idx = upper_bound(end);
-        return idx != SIZE_MAX && start <= ends[idx];
+        size_t i = upper_bound(end);
+        while (i != SIZE_MAX) {
+            if (start <= ends[i]) {
+                return true;
+            }
+            i = branch[i];
+        }
+        return false;
     }
 
     /**

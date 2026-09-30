@@ -222,10 +222,16 @@ impl<T: Clone> IntervalMap<T>
         if self.starts.is_empty() {
             return false;
         }
-        let idx = self.upper_bound(end);
+        let mut i = self.upper_bound(end);
         unsafe {
-            idx != usize::MAX && start <= *self.ends.get_unchecked(idx)
+            while i != usize::MAX {
+                if start <= *self.ends.get_unchecked(i) {
+                    return true;
+                }
+                i = *self.branch.get_unchecked(i);
+            }
         }
+        false
     }
 
 //     This is the simple algorithm, but suffers performance wise due to the branching

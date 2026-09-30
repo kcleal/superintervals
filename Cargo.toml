@@ -61,3 +61,7 @@ name = "bed-intersect-si"
 [[test]]
 name = "set_ops"
 path = "test/set_ops.rs"
+
+[[test]]
+name = "has_overlaps"
+path = "test/has_overlaps.rs"
