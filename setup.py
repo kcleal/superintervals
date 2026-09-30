@@ -1,13 +1,17 @@
+import sys
+
 from setuptools import setup, find_packages, Extension
 from Cython.Build import cythonize
+
+MSVC = sys.platform == "win32"
 
 ext_modules = [
     Extension("superintervals.intervalmap",
               ["src/superintervals/intervalmap.pyx"],
               include_dirs=["src"],
               language="c++",
-              extra_compile_args=["-std=c++17"],
-              extra_link_args=["-lstdc++"])
+              extra_compile_args=["/std:c++17"] if MSVC else ["-std=c++17"],
+              extra_link_args=[] if MSVC else ["-lstdc++"])
 ]
 
 print('PAKCAGES', find_packages(where='src'))  # Add this line for debugging
