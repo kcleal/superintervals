@@ -29,12 +29,14 @@
 // =============================================================================
 
 #include "superintervals.hpp"
+#include "c_superintervals.h"
 #include <iostream>
 #include <vector>
 #include <cassert>
 #include <utility>
 #include <tuple>
 #include <algorithm>
+#include <random>
 
 using Map = si::IntervalMap<int, int>;
 
@@ -263,6 +265,121 @@ void test_edge_cases() {
 }
 
 
+// A long interval must still be found when a shorter nested interval lies
+// between it and the query.
+void test_has_overlaps_long_interval_before_nested() {
+    std::cout << "has_overlaps nested, ";
+    Map itv;
+    itv.add(0, 99, 0);
+    itv.add(10, 19, 1);
+    itv.build();
+
+    std::vector<int> values;
+    itv.search_values(30, 39, values);
+    assert(values.size() == 1 && values[0] == 0);
+    assert(itv.has_overlaps(30, 39));
+}
+
+void test_has_overlaps_boundaries() {
+    std::cout << "has_overlaps boundaries, ";
+    Map empty;
+    assert(!empty.has_overlaps(0, 0));
+    empty.build();
+    assert(!empty.has_overlaps(0, 0));
+
+    Map single;
+    single.add(10, 20, 0);
+    single.build();
+    assert(single.has_overlaps(20, 25));  // query starts on the interval end
+    assert(single.has_overlaps(5, 10));   // query ends on the interval start
+    assert(single.has_overlaps(15, 15));
+    assert(single.has_overlaps(0, 30));
+    assert(!single.has_overlaps(21, 25));
+    assert(!single.has_overlaps(5, 9));
+
+    Map nested;
+    nested.add(0, 99, 0);
+    nested.add(10, 19, 1);
+    nested.build();
+    assert(nested.has_overlaps(99, 120));
+    assert(nested.has_overlaps(20, 20));
+    assert(nested.has_overlaps(5, 5));
+    assert(!nested.has_overlaps(100, 120));
+    assert(!nested.has_overlaps(-10, -1));
+}
+
+void test_has_overlaps_matches_search() {
+    std::cout << "has_overlaps random, ";
+    std::mt19937 rng(42);
+    auto rand_int = [&](int n) { return static_cast<int>(rng() % n); };
+    const int lengths[] = {5, 50, 500};
+    std::vector<int> found;
+    for (int trial = 0; trial < 500; ++trial) {
+        Map itv;
+        si::IntervalMapEytz<int, int> eytz;
+        const int n = rand_int(60);
+        for (int k = 0; k < n; ++k) {
+            const int s = rand_int(1000);
+            const int e = s + rand_int(lengths[rand_int(3)]);
+            itv.add(s, e, k);
+            eytz.add(s, e, k);
+        }
+        itv.build();
+        eytz.build();
+        for (int q = 0; q < 200; ++q) {
+            const int a = rand_int(1150) - 50;
+            const int b = a + rand_int(100);
+            found.clear();
+            itv.search_values(a, b, found);
+            assert(itv.has_overlaps(a, b) == !found.empty());
+            found.clear();
+            eytz.search_values(a, b, found);
+            assert(eytz.has_overlaps(a, b) == !found.empty());
+        }
+    }
+}
+
+void test_c_any_overlaps() {
+    std::cout << "c anyOverlaps, ";
+    cSuperIntervals* empty = createSuperIntervals();
+    assert(!anyOverlaps(empty, 0, 0));
+    destroySuperIntervals(empty);
+
+    cSuperIntervals* nested = createSuperIntervals();
+    addInterval(nested, 0, 99, 0);
+    addInterval(nested, 10, 19, 1);
+    indexSuperIntervals(nested);
+    assert(anyOverlaps(nested, 30, 39));
+    assert(anyOverlaps(nested, 99, 120));
+    assert(!anyOverlaps(nested, 100, 120));
+    assert(!anyOverlaps(nested, -10, -1));
+    destroySuperIntervals(nested);
+
+    std::mt19937 rng(42);
+    auto rand_int = [&](int n) { return static_cast<int>(rng() % n); };
+    const int lengths[] = {5, 50, 500};
+    cIndexResult found = createIndexResult();
+    for (int trial = 0; trial < 500; ++trial) {
+        cSuperIntervals* c_map = createSuperIntervals();
+        const int n = rand_int(60);
+        for (int k = 0; k < n; ++k) {
+            const int s = rand_int(1000);
+            addInterval(c_map, s, s + rand_int(lengths[rand_int(3)]), k);
+        }
+        indexSuperIntervals(c_map);
+        for (int q = 0; q < 200; ++q) {
+            const int a = rand_int(1150) - 50;
+            const int b = a + rand_int(100);
+            clearIndexResult(&found);
+            searchValues(c_map, a, b, &found);
+            assert(anyOverlaps(c_map, a, b) == (found.size > 0));
+        }
+        destroySuperIntervals(c_map);
+    }
+    destroyIndexResult(&found);
+}
+
+
 // =============================================================================
 //  Set-like operations
 //
@@ -406,6 +523,10 @@ int main() {
     test_overlap_queries();
     test_coverage();
     test_edge_cases();
+    test_has_overlaps_long_interval_before_nested();
+    test_has_overlaps_boundaries();
+    test_has_overlaps_matches_search();
+    test_c_any_overlaps();
     std::cout << "\n  All query tests passed\n";
 
     std::cout << "\nSet operation tests\n  ";

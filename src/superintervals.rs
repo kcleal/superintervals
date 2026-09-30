@@ -222,9 +222,6 @@ impl<T: Clone> IntervalMap<T>
         if self.starts.is_empty() {
             return false;
         }
-        // The interval reaching furthest right is not necessarily at upper_bound(end)
-        // (e.g. a long interval hidden behind a shorter nested one); follow the branch
-        // chain, which always leads to it. Early-exit on the first hit.
         let mut i = self.upper_bound(end);
         unsafe {
             while i != usize::MAX {

@@ -568,8 +568,14 @@ size_t upperBound(cSuperIntervals* si, int32_t value) {
 }
 
 bool anyOverlaps(cSuperIntervals* si, int32_t start, int32_t end) {
-    size_t idx = upperBound(si, end);
-    return idx != SI_NONE && start <= si->ends[idx];
+    size_t i = upperBound(si, end);
+    while (i != SI_NONE) {
+        if (start <= si->ends[i]) {
+            return true;
+        }
+        i = si->branch[i];
+    }
+    return false;
 }
 
 void searchValues(cSuperIntervals* si, int32_t start, int32_t end, cIndexResult* found) {

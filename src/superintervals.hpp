@@ -866,9 +866,6 @@ class IntervalMap {
         if (starts.empty()) {
             return false;
         }
-        // The interval reaching furthest right is not necessarily at upper_bound(end)
-        // (e.g. a long interval hidden behind a shorter nested one); follow the branch
-        // chain, which always leads to it. Early-exit on the first hit.
         size_t i = upper_bound(end);
         while (i != SIZE_MAX) {
             if (start <= ends[i]) {
