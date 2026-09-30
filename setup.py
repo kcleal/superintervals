@@ -19,5 +19,6 @@ setup(
     author_email="clealk@cardiff.ac.uk",
     packages=find_packages(where='src'),
     package_dir={"": "src"},
+    package_data={"superintervals": ["py.typed", "*.pyi"]},
     ext_modules=cythonize(ext_modules),
 )
