@@ -106,6 +106,31 @@ void test_basics() {
     assert(cov.second == 17);
 }
 
+// -----------------------------------------------------------------------------
+//  has_overlaps must follow branch pointers, not just check upper_bound(end):
+//  the interval reaching furthest right may sit behind a shorter nested one.
+// -----------------------------------------------------------------------------
+void test_has_overlaps_branching() {
+    std::cout << "has_overlaps_branching, ";
+    Map itv;
+    itv.add(0, 99, 1);    // long
+    itv.add(10, 19, 2);   // short, nested inside the long one
+    itv.build();
+
+    assert(itv.has_overlaps(30, 39));     // inside [0,99], past the nested one
+    assert(!itv.has_overlaps(101, 200));  // disjoint from everything
+
+    // has_overlaps must agree with the full search.
+    std::vector<size_t> idxs;
+    itv.search_idxs(30, 39, idxs);
+    assert(idxs.size() == 1);
+
+    // Same geometry with the query itself stored (different sort positions).
+    itv.add(30, 39, 3);
+    itv.build();
+    assert(itv.has_overlaps(30, 39));
+}
+
 
 // -----------------------------------------------------------------------------
 //  2. Iterating results with a range-based for loop
@@ -376,6 +401,7 @@ void test_span() {
 int main() {
     std::cout << "\nSuperIntervals tests\n  ";
     test_basics();
+    test_has_overlaps_branching();
     test_iteration();
     test_overlap_queries();
     test_coverage();

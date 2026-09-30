@@ -1,7 +1,7 @@
 [package]
 name = "superintervals"
 description = "Interval overlap library"
-version = "1.0.0"
+version = "1.0.2"
 authors = ["Kez Cleal. <clealk@cardiff.ac.uk>"]
 edition = "2021"
 repository = "https://github.com/kcleal/superintervals"
@@ -61,3 +61,7 @@ name = "bed-intersect-si"
 [[test]]
 name = "set_ops"
 path = "test/set_ops.rs"
+
+[[test]]
+name = "has_overlaps"
+path = "test/has_overlaps.rs"

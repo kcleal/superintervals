@@ -150,6 +150,19 @@ def run_superintervals_detailed_benchmark(intervals, queries):
         assert list(sitv.iter_items(start, end)) == sitv.search_items(start, end), (start, end)
     print("Iterator correctness checks passed")
 
+    # has_overlaps must agree with the full search (regression: it used to check
+    # only the single candidate at upper_bound(end), missing a long interval
+    # hidden behind a shorter nested one).
+    for start, end in check_queries:
+        assert sitv.has_overlaps(start, end) == bool(sitv.search_idxs(start, end)), (start, end)
+    nested_case = IntervalMap()
+    nested_case.add(0, 99, "long")
+    nested_case.add(10, 19, "nested")
+    nested_case.build()
+    assert nested_case.has_overlaps(30, 39)
+    assert not nested_case.has_overlaps(100, 200)
+    print("has_overlaps consistency checks passed")
+
     # Mutation during iteration invalidates outstanding iterators
     probe = IntervalMap()
     probe.add(0, 10, "a")
