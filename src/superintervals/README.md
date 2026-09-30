@@ -88,6 +88,12 @@ indices = imap.search_idxs_batch(query_starts, query_ends)  # [[0], [0, 1], [2]]
 - `search_items(start, end)`  
   Get (start, end, value) tuples of overlapping intervals
 
+- `iter_idxs(start, end)`, `iter_keys(start, end)`, `iter_values(start, end)`, `iter_items(start, end)`  
+  Streaming versions of the corresponding `search_*` methods, yielding hits one at a time
+  without building the full result list. Useful for early-exit scans and very large hit sets; for consuming every hit the
+  `search_*` methods are typically as fast or faster. Raises `RuntimeError` if the map is
+  modified (add/build/clear) while iterating.
+
 - `coverage(start, end)`  
   Get (count, total_coverage) for range
 
@@ -155,6 +161,7 @@ sp = a.span()                       # (min_start, max_end) or None if empty
 
 - Use `IntervalMap.from_arrays()` for best construction performance
 - Use batch methods for multiple queries (often 5-10x faster)
+- Use the `iter_*` iterators when a loop exits early (e.g. first hit) or hit sets are huge
 - Convert lists to arrays for batch operations:
   ```python
   from array import array

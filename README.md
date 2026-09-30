@@ -133,15 +133,11 @@ Interval Tree for C++), and SIMD counting performance was on par with Coitrees.
 Full methodology, datasets and per-dataset timing tables are in
 [test/benchmark.md](test/benchmark.md).
 
-### Third-party confirmation
-
 An independent September 2025 benchmark by the [polars-bio](https://biodatageeks.org)
-team ([report](https://biodatageeks.org/polars-bio/blog/2025/09/05/interval-operations-benchmark--update-september-2025))
-evaluated SuperIntervals as a backend data structure for polars-bio. They found it to
-be **consistently the fastest or tied for fastest**, delivering 1.25–1.44x speedups
-over the default COITrees implementation across small, medium and large datasets,
+team ([report](https://biodatageeks.org/polars-bio/blog/2025/09/05/interval-operations-benchmark--update-september-2025)) evaluated SuperIntervals as a backend data structure for polars-bio. They found it to
+be generally the fastest or tied for fastest, delivering 1.25–1.44x speedups,
 and concluded it offers reliable, well-rounded performance without worst-case
-degradation — making it an ideal default for general-purpose interval operations.
+degradation.
 
 
 ## Acknowledgements

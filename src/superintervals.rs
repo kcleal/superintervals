@@ -248,6 +248,7 @@ impl<T: Clone> IntervalMap<T>
 //     }
 
     /// Finds all intervals that overlap with the given range.
+    /// Results are returned in descending order (reverse position-sorted).
     ///
     /// # Arguments
     ///
@@ -293,7 +294,8 @@ impl<T: Clone> IntervalMap<T>
 
     /// Finds all intervals that overlap with the given range. Works best when
     /// query intervals are large compared to stored database intervals. Uses
-    /// an exponential search to find overlaps
+    /// an exponential search to find overlaps.
+    /// Results are returned in descending order (reverse position-sorted).
     ///
     /// # Arguments
     ///
@@ -644,6 +646,8 @@ impl<T: Clone> IntervalMap<T>
         count
     }
 
+    /// Finds the indices of all intervals that overlap with the given range.
+    /// Results are returned in descending order (reverse position-sorted).
     pub fn search_idxs(&self, start: i32, end: i32, found: &mut Vec<usize>) {
         if self.starts.is_empty() {
             return;
@@ -674,6 +678,8 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
+    /// Finds the (start, end) keys of all intervals that overlap with the given range.
+    /// Results are returned in descending order (reverse position-sorted).
     pub fn search_keys(&self, start: i32, end: i32, found: &mut Vec<(i32, i32)>) {
         if self.starts.is_empty() {
             return;
@@ -702,6 +708,8 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
+    /// Finds the full intervals (start, end, data) overlapping the given range.
+    /// Results are returned in descending order (reverse position-sorted).
     pub fn search_items(&self, start: i32, end: i32, found: &mut Vec<Interval<T>>) {
         if self.starts.is_empty() {
             return;
@@ -738,6 +746,8 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
+    /// Finds the data of all intervals stabbed by (containing) the given point.
+    /// Results are returned in descending order (reverse position-sorted).
     pub fn search_stabbed(&self, point: i32, found: &mut Vec<T>) {
         if self.starts.is_empty() {
             return;
@@ -1296,7 +1306,7 @@ impl<'a, T: Clone> Iterator for ValueIterator<'a, T> {
 
 // Updated iterator creation methods for IntervalMap
 impl<T: Clone> IntervalMap<T> {
-    /// Returns an iterator over indices of intervals that intersect [start, end]
+    /// Returns an iterator over indices of intervals that intersect [start, end], in descending order
     pub fn search_idxs_iter(&self, start: i32, end: i32) -> IndexIterator<T> {
         let current_idx = if self.starts.is_empty() {
             usize::MAX
@@ -1310,7 +1320,7 @@ impl<T: Clone> IntervalMap<T> {
         }
     }
 
-    /// Returns an iterator over items (intervals with data) that intersect [start, end]
+    /// Returns an iterator over items (intervals with data) that intersect [start, end], in descending order
     pub fn search_items_iter(&self, start: i32, end: i32) -> ItemIterator<T> {
         let current_idx = if self.starts.is_empty() {
             usize::MAX

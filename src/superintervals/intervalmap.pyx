@@ -1,5 +1,6 @@
 
 from libcpp.pair cimport pair
+from libc.stdint cimport SIZE_MAX
 
 __all__ = ["IntervalMap"]
 
@@ -41,6 +42,10 @@ cdef class IntervalMap:
     def __getitem__(self, int index):
         return self.at(index)
 
+    def __iter__(self):
+        for i in range(self.size()):
+            yield self.at(i)
+
     cpdef add(self, int start, int end, object value=None):
         """
         Add an interval with an associated Python object.
@@ -59,6 +64,7 @@ cdef class IntervalMap:
             obj_ptr = <PyObjectPtr> value
             Py_INCREF(value)  # Increment reference count
         self.thisptr.add(start, end, obj_ptr)
+        self._version += 1
 
     @classmethod
     def from_arrays(cls, starts, ends, values=None):
@@ -135,6 +141,7 @@ cdef class IntervalMap:
         Builds the superintervals index, must be called before queries are made.
         """
         self.thisptr.build()
+        self._version += 1
 
     cpdef at(self, int index):
         """
@@ -219,6 +226,7 @@ cdef class IntervalMap:
             if obj_ptr != NULL:
                 Py_DECREF(<object> obj_ptr)
         self.thisptr.clear()
+        self._version += 1
 
     cpdef reserve(self, size_t n):
         """
@@ -343,6 +351,91 @@ cdef class IntervalMap:
             else:
                 result[i] = (self.thisptr.starts[idx], self.thisptr.ends[idx], None)
         return result
+
+    cpdef iter_idxs(self, int start, int end):
+        """
+        Iterate over the indices of intervals that overlap the given range.
+
+        Yields the same hits as search_idxs(start, end), but lazily without building the full
+        result list. Best when iteration stops early or a query matches a very
+        large number of intervals.
+
+        Args:
+            start (int): The start of the range (inclusive).
+            end (int): The end of the range (inclusive).
+
+        Returns:
+            IndexIterator: An iterator of interval indices.
+
+        Raises:
+            RuntimeError: If the map is modified (add/build/clear) during iteration.
+        """
+        cdef IndexIterator it = IndexIterator.__new__(IndexIterator)
+        it._init(self, start, end)
+        return it
+
+    cpdef iter_keys(self, int start, int end):
+        """
+        Iterate over the (start, end) keys of intervals that overlap the given range.
+
+        Yields the same hits as search_keys(start, end), but lazily.
+        See iter_idxs() for details.
+
+        Args:
+            start (int): The start of the range (inclusive).
+            end (int): The end of the range (inclusive).
+
+        Returns:
+            KeyIterator: An iterator of (start, end) tuples.
+
+        Raises:
+            RuntimeError: If the map is modified (add/build/clear) during iteration.
+        """
+        cdef KeyIterator it = KeyIterator.__new__(KeyIterator)
+        it._init(self, start, end)
+        return it
+
+    cpdef iter_values(self, int start, int end):
+        """
+        Iterate over the data values of intervals that overlap the given range.
+
+        Yields the same hits as search_values(start, end), but lazily.
+        See iter_idxs() for details.
+
+        Args:
+            start (int): The start of the range (inclusive).
+            end (int): The end of the range (inclusive).
+
+        Returns:
+            ValueIterator: An iterator of stored data values.
+
+        Raises:
+            RuntimeError: If the map is modified (add/build/clear) during iteration.
+        """
+        cdef ValueIterator it = ValueIterator.__new__(ValueIterator)
+        it._init(self, start, end)
+        return it
+
+    cpdef iter_items(self, int start, int end):
+        """
+        Iterate over the (start, end, data) items of intervals that overlap the given range.
+
+        Yields the same hits as search_items(start, end), but lazily.
+        See iter_idxs() for details.
+
+        Args:
+            start (int): The start of the range (inclusive).
+            end (int): The end of the range (inclusive).
+
+        Returns:
+            ItemIterator: An iterator of (start, end, data) tuples.
+
+        Raises:
+            RuntimeError: If the map is modified (add/build/clear) during iteration.
+        """
+        cdef ItemIterator it = ItemIterator.__new__(ItemIterator)
+        it._init(self, start, end)
+        return it
 
     cpdef coverage(self, int start, int end):
         """
@@ -817,3 +910,103 @@ cdef class IntervalMap:
         out.add(run_start, run_end, acc)
         out.build()
         return out
+
+
+
+# Streaming query iterators
+# These mirror the traversal in si::IntervalMap's C++ IndexIterator/
+# KeyIterator/ValueIterator/ItemIterator classes, reimplemented against the
+# exposed vectors so the per-step work stays inlinable C.
+
+cdef class _IntervalIterator:
+    def __iter__(self):
+        return self
+
+    cdef void _init(self, IntervalMap imap, int start, int end) except *:
+        self._map = imap
+        self._query_start = start
+        self._version = imap._version
+        if imap.thisptr.size() == 0:
+            self._pos = SIZE_MAX
+        else:
+            self._pos = imap.thisptr.upper_bound(end)
+        self._advance()
+
+    cdef inline void _advance(self) noexcept:
+        if self._pos == SIZE_MAX:
+            self._has_value = False
+            return
+        if self._query_start <= self._map.thisptr.ends[self._pos]:
+            self._value = self._pos
+            self._pos -= 1
+            self._has_value = True
+            return
+        while True:
+            self._pos = self._map.thisptr.branch[self._pos]
+            if self._pos == SIZE_MAX:
+                break
+            if self._query_start <= self._map.thisptr.ends[self._pos]:
+                self._value = self._pos
+                self._pos -= 1
+                self._has_value = True
+                return
+        self._has_value = False
+
+    cdef inline bint _check(self) except *:
+        if self._map._version != self._version:
+            raise RuntimeError("IntervalMap was modified during iteration")
+        return self._has_value
+
+
+cdef class IndexIterator(_IntervalIterator):
+    """Iterator over the indices of intervals overlapping a query range."""
+
+    def __next__(self):
+        if not self._check():
+            raise StopIteration
+        cdef size_t idx = self._value
+        self._advance()
+        return idx
+
+
+cdef class KeyIterator(_IntervalIterator):
+    """Iterator over the (start, end) keys of intervals overlapping a query range."""
+
+    def __next__(self):
+        if not self._check():
+            raise StopIteration
+        cdef size_t idx = self._value
+        cdef int s = self._map.thisptr.starts[idx]
+        cdef int e = self._map.thisptr.ends[idx]
+        self._advance()
+        return s, e
+
+
+cdef class ValueIterator(_IntervalIterator):
+    """Iterator over the data values of intervals overlapping a query range."""
+
+    def __next__(self):
+        if not self._check():
+            raise StopIteration
+        cdef size_t idx = self._value
+        cdef PyObjectPtr obj_ptr = self._map.thisptr.data[idx]
+        self._advance()
+        if obj_ptr != NULL:
+            return <object> obj_ptr
+        return None
+
+
+cdef class ItemIterator(_IntervalIterator):
+    """Iterator over the (start, end, data) items of intervals overlapping a query range."""
+
+    def __next__(self):
+        if not self._check():
+            raise StopIteration
+        cdef size_t idx = self._value
+        cdef int s = self._map.thisptr.starts[idx]
+        cdef int e = self._map.thisptr.ends[idx]
+        cdef PyObjectPtr obj_ptr = self._map.thisptr.data[idx]
+        self._advance()
+        if obj_ptr != NULL:
+            return s, e, <object> obj_ptr
+        return s, e, None

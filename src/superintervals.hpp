@@ -1,4 +1,4 @@
-// Version 1.0.0
+// Version 1.0.1
 #pragma once
 
 #include <algorithm>
@@ -889,10 +889,10 @@ class IntervalMap {
             --i;
         }
         if (i == SIZE_MAX) {
-            found.insert(found.end(), CountingIterator(0), CountingIterator(idx + 1));
+            found.insert(found.end(), CountingIterator(idx), CountingIterator(SIZE_MAX));  // 0 wraps to SIZE_MAX
             return;
         }
-        found.insert(found.end(), CountingIterator(i + 1), CountingIterator(idx + 1));
+        found.insert(found.end(), CountingIterator(idx), CountingIterator(i));
         i = branch[i];
         while (i != SIZE_MAX) {
             if (start <= ends[i]) {
@@ -1448,7 +1448,7 @@ class IntervalMap {
 
         explicit CountingIterator(size_t v) : value(v) {}
         size_t operator*() const { return value; }
-        CountingIterator& operator++() { ++value; return *this; }
+        CountingIterator& operator++() { --value; return *this; }
         bool operator!=(const CountingIterator& other) const { return value != other.value; }
     };
 };
@@ -1487,7 +1487,6 @@ public:
             }
             br.emplace_back() = {this->ends[i], i};
         }
-//        this->idx = 0;
     }
 
     /**

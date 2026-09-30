@@ -33,7 +33,7 @@ cdef extern from "superintervals.hpp" namespace "si":
         const Interval[S, T]& at(size_t index) const
 
         # Search methods
-        void upper_bound(const S value) const
+        size_t upper_bound(const S value) const
         bint has_overlaps(const S start, const S end)
         size_t count_linear(const S start, const S end)
         size_t count(const S start, const S end)
@@ -47,34 +47,6 @@ cdef extern from "superintervals.hpp" namespace "si":
         void search_point(const S point, vector[T]& found)
         void coverage(const S start, const S end, pair[size_t, S]& cov_result)
 
-        # Iterator classes not yet implemented!
-        # cppclass IndexIterator:
-        #     IndexIterator(const IntervalMap * parent, size_t pos)
-        #     size_t operator *() const
-        #     IndexIterator& operator++()
-        #     bint operator !=(const IndexIterator& other) const
-        #     bint operator ==(const IndexIterator& other) const
-        #
-        # cppclass ItemIterator:
-        #     ItemIterator(const IntervalMap * parent, size_t pos)
-        #     Interval[S, T] operator *() const
-        #     ItemIterator& operator++()
-        #     bint operator !=(const ItemIterator& other) const
-        #     bint operator ==(const ItemIterator& other) const
-        #
-        # cppclass IndexRange:
-        #     IndexRange(const IntervalMap * parent, S start, S end)
-        #     IndexIterator begin() const
-        #     IndexIterator end() const
-        #
-        # cppclass ItemRange:
-        #     ItemRange(const IntervalMap * parent, S start, S end)
-        #     ItemIterator begin() const
-        #     ItemIterator end() const
-        #
-        # IndexRange search_idxs(S start, S end) const
-        # ItemRange search_items(S start, S end) const
-
 
 
 # Type alias for Python object pointer
@@ -84,6 +56,7 @@ cdef class IntervalMap:
     cdef CppIntervalMap[int, PyObjectPtr] * thisptr
     cdef vector[PyObjectPtr] found_values
     cdef vector[size_t] found_indexes
+    cdef size_t _version
 
     cpdef add(self, int start, int end, object value= *)
     cpdef build(self)
@@ -100,6 +73,10 @@ cdef class IntervalMap:
     cpdef search_idxs(self, int start, int end)
     cpdef search_keys(self, int start, int end)
     cpdef search_items(self, int start, int end)
+    cpdef object iter_idxs(self, int start, int end)
+    cpdef object iter_keys(self, int start, int end)
+    cpdef object iter_values(self, int start, int end)
+    cpdef object iter_items(self, int start, int end)
     cpdef coverage(self, int start, int end)
     cpdef count_batch(self, int[:] starts, int[:] ends)
     cpdef search_idxs_batch(self, int[:] starts, int[:] ends)
@@ -117,3 +94,28 @@ cdef class IntervalMap:
     cpdef expand(self, int left, int right, lo= *, hi= *)
     cpdef flank(self, int left, int right, lo= *, hi= *)
     cpdef unique(self, combine= *)
+
+
+cdef class _IntervalIterator:
+    cdef IntervalMap _map      # strong ref keeps the queried map alive
+    cdef size_t _pos           # next candidate position (SIZE_MAX = exhausted)
+    cdef size_t _value         # index of the current hit
+    cdef size_t _version       # map version at creation; mutation guard
+    cdef int _query_start
+    cdef bint _has_value
+
+    cdef void _init(self, IntervalMap imap, int start, int end) except *
+    cdef void _advance(self) noexcept
+    cdef bint _check(self) except *
+
+cdef class IndexIterator(_IntervalIterator):
+    pass
+
+cdef class KeyIterator(_IntervalIterator):
+    pass
+
+cdef class ValueIterator(_IntervalIterator):
+    pass
+
+cdef class ItemIterator(_IntervalIterator):
+    pass

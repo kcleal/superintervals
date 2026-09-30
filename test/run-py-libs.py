@@ -129,7 +129,48 @@ def run_superintervals_detailed_benchmark(intervals, queries):
         ("search_idxs", lambda start, end: len(sitv.search_idxs(start, end))),
         ("count", lambda start, end: sitv.count(start, end)),
         ("has_overlaps", lambda start, end: int(sitv.has_overlaps(start, end))),
+        ("iter_values", lambda start, end: sum(1 for _ in sitv.iter_values(start, end))),
+        ("iter_items", lambda start, end: sum(1 for _ in sitv.iter_items(start, end))),
+        ("iter_idxs", lambda start, end: sum(1 for _ in sitv.iter_idxs(start, end))),
+        ("iter_keys", lambda start, end: sum(1 for _ in sitv.iter_keys(start, end))),
     ]
+
+    # Verify streaming iterators return the same hits, in the same descending
+    # order, as the list-based searches (reverse position-sorted, per the
+    # algorithm; see the main README).
+    check_queries = [(int(s), int(e)) for s, e in queries[: min(200, len(queries))]]
+    lo = int(intervals[:, 0].min())
+    hi = int(intervals[:, 1].max())
+    mid = (lo + hi) // 2
+    check_queries += [(hi + 1000, hi + 2000), (lo, hi), (mid, mid)]
+    for start, end in check_queries:
+        assert list(sitv.iter_idxs(start, end)) == sitv.search_idxs(start, end), (start, end)
+        assert list(sitv.iter_keys(start, end)) == sitv.search_keys(start, end), (start, end)
+        assert list(sitv.iter_values(start, end)) == sitv.search_values(start, end), (start, end)
+        assert list(sitv.iter_items(start, end)) == sitv.search_items(start, end), (start, end)
+    print("Iterator correctness checks passed")
+
+    # Mutation during iteration invalidates outstanding iterators
+    probe = IntervalMap()
+    probe.add(0, 10, "a")
+    probe.add(5, 15, "b")
+    probe.build()
+    pit = probe.iter_items(0, 20)
+    assert sorted(pit) == [(0, 10, "a"), (5, 15, "b")]
+    try:
+        next(pit)
+        raise AssertionError("expected StopIteration from exhausted iterator")
+    except StopIteration:
+        pass
+    pit = probe.iter_items(0, 20)
+    next(pit)
+    probe.add(20, 30, "c")
+    try:
+        next(pit)
+        raise AssertionError("expected RuntimeError after modifying map during iteration")
+    except RuntimeError:
+        pass
+    print("Iterator mutation-guard checks passed")
 
     for method_name, method_func in methods:
         t0 = time.time()
