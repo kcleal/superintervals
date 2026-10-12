@@ -51,6 +51,8 @@ jobs:
       BENCHMARK_RUNNER_LABEL: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -90,6 +92,7 @@ jobs:
             benchmark-results/summary.csv
             benchmark-results/runtimes.csv
             benchmark-results/metadata.json
+            benchmark-results/cargo-metadata.json
             benchmark-results/commands.log
           retention-days: 30
       - name: Save reproducibility files

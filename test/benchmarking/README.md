@@ -55,7 +55,13 @@ or repository. Failed benchmark jobs leave the last successful page intact.
 
 Dataset: release v0.2.0 `data.tar.gz`, SHA256
 `c98159506689c412a909505e79576035b42ab50a4930d6c693ef9517756039de`.
-C/C++ and COITrees copies come from `test/3rd-party`. Rust-lapper 1.1.0 is bundled
-there because the existing gitlink is not initialised in a fresh checkout;
-its library source matches upstream commit
-`a15c7bb4fdb54cfe62fea90ca5440d04cd200ef5`.
+C/C++ and NCLS use tracked sources from `test/3rd-party`; their hashes are
+recorded. Cargo downloads COITrees 0.4.0 and rust-lapper 1.3.0 from crates.io.
+Exact versions and transitive dependency checksums are pinned in the driver
+`Cargo.lock`; builds use `--locked`. No local Rust third-party checkout or
+submodule is required. Resolved package versions and sources are recorded in
+metadata and the HTML tool table. Unversioned C/C++ sources show their last
+Git modification date (not an upstream release date). CI fetches full history
+for these dates. Cargo's full dependency graph is recorded in `cargo-metadata.json`.
+To upgrade a Rust dependency, change its pinned version in the generated driver
+manifest and update `test/benchmarking/Cargo.lock` together.

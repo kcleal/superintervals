@@ -37,7 +37,7 @@ def build_site(inputs, output, history_url=None):
         buttons.append(f'<button role="tab" id="tab-{arch}" aria-controls="panel-{arch}" aria-selected="{str(i==0).lower()}" onclick="selectArch(\'{arch}\')">{arch}</button>')
         frames.append(f'<iframe id="panel-{arch}" role="tabpanel" aria-labelledby="tab-{arch}" title="{arch} benchmark" {"hidden" if i else ""} srcdoc="{html.escape(doc,quote=True)}" onload="wire(this)"></iframe>')
         record['architectures'][arch]={'cpu':meta.get('cpu'),'platform':meta['platform'],
-            'arguments':meta['arguments'],'versions':meta['versions'],
+            'arguments':meta['arguments'],'versions':meta['versions'],'tool_versions':meta.get('tool_versions'),
             'inputs':meta['prepared_inputs'], 'sampling':meta.get('sampling'),
             'simulation':meta.get('simulation'),'flags':{k:meta.get(k) for k in ('CFLAGS','CXXFLAGS','RUSTFLAGS')},
             'summary':list(csv.DictReader((root/'summary.csv').open()))}

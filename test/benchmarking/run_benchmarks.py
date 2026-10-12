@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build and run the manuscript's native interval-library benchmark. Python >=3.10."""
-import argparse, bisect, csv, hashlib, io, json, os, platform, random
+import argparse, bisect, csv, hashlib, json, os, platform, random
 import shutil, statistics, subprocess, sys, tarfile, time, urllib.request, html, re, math
 from pathlib import Path
 
@@ -50,9 +50,6 @@ def prepare_source(repo, out):
     shutil.copy2(repo/'test'/'bench.cpp',dst/'test'/'bench.cpp')
     for p in (repo/'test'/'3rd-party').iterdir():
         if p.is_file(): shutil.copy2(p,dst/'test'/'3rd-party'/p.name)
-    shutil.copytree(repo/'test'/'3rd-party'/'coitrees',dst/'test'/'3rd-party'/'coitrees',
-                    ignore=shutil.ignore_patterns('target','.git'))
-    shutil.copytree(repo/'test'/'3rd-party'/'rust-lapper',dst/'test'/'3rd-party'/'rust-lapper')
     # Empty tests/examples satisfy root Cargo manifest; the independent driver uses the library.
     (dst/'test'/'benchmarking').mkdir()
     for name in ('run_benchmarks.py','rust_driver.rs','Cargo.lock','make_site.py'):
@@ -141,8 +138,8 @@ version = "0.1.0"
 edition = "2021"
 [dependencies]
 superintervals = { path = "../source" }
-coitrees = { path = "../source/test/3rd-party/coitrees" }
-rust-lapper = { path = "../source/test/3rd-party/rust-lapper" }
+coitrees = "=0.4.0"
+rust-lapper = "=1.3.0"
 [profile.release]
 opt-level = 3
 lto = true
@@ -153,6 +150,8 @@ codegen-units = 1
     env=os.environ.copy(); env['RUSTFLAGS']='-C target-cpu=native'
     env['CARGO_TARGET_DIR']=str(out/'rust-target')
     command(['cargo','build','--release','--locked','--manifest-path',driver/'Cargo.toml'],env=env,log=log)
+    resolved=json.loads(command(['cargo','metadata','--locked','--format-version','1','--manifest-path',driver/'Cargo.toml'],env=env,log=log))
+    (out/'cargo-metadata.json').write_text(json.dumps(resolved,indent=2)+'\n')
     return cpp,out/'rust-target'/'release'/'manuscript-benchmark'
 
 def data(archive,out,log):
@@ -301,6 +300,29 @@ def timing_plot(rows, operation):
     return ''.join(parts)
 
 
+def tool_versions(repo, src, dependencies, revision='HEAD'):
+    version=re.search(r'^version\s*=\s*"([^"]+)"', (src/'Cargo.toml').read_text(),re.M).group(1)
+    result={}
+    for tool,path in [('SuperIntervals-rs','src/superintervals.rs'),
+                      ('SuperIntervals-C++','src/superintervals.hpp'),
+                      ('ImplicitITree-C++','test/3rd-party/IITree.hpp'),
+                      ('IntervalTree-C++','test/3rd-party/IntervalTree.h'),
+                      ('NCLS-C','test/3rd-party/intervaldb.c')]:
+        date=command(['git','log','-1','--format=%cs',revision,'--',path],cwd=repo).strip()
+        captured_sha=sha(src/path)
+        committed_sha=hashlib.sha256(command(['git','show',f'{revision}:{path}'],cwd=repo).encode()).hexdigest()
+        source_url=f'https://github.com/kcleal/superintervals/blob/{revision}/{path}' if captured_sha==committed_sha else 'https://github.com/kcleal/superintervals'
+        result[tool]={'version':version if tool.startswith('SuperIntervals') else None,
+                      'source_date':date or None,'sha256':captured_sha,
+                      'modified':captured_sha!=committed_sha,'source':source_url}
+    for tool,crate in [('Coitrees','coitrees'),('rust-lapper','rust-lapper')]:
+        entry=dependencies.get(crate,{})
+        if entry.get('version'):
+            result[tool]={'version':entry['version'],'source_date':None,
+                          'source':f'https://crates.io/crates/{crate}/{entry["version"]}'}
+    return result
+
+
 def generate(directory):
     meta=json.loads((directory/'metadata.json').read_text())
     rows=[]
@@ -365,6 +387,20 @@ def generate(directory):
             r=next((lookup[dataset,order,tool,op] for op in ('find','count','stream') if (dataset,order,tool,op) in lookup),None)
             values.append(number(r['build_median_us']) if r else '—')
         build_values.append([html.escape(dataset),html.escape(order),*values])
+    provenance=meta.get('tool_versions',{})
+    version_rows=[]; version_md=[]
+    for tool in preferred:
+        entry=provenance.get(tool,{})
+        if not entry and tool in ('Coitrees','rust-lapper'):
+            entry=meta.get('dependencies',{}).get('coitrees' if tool=='Coitrees' else 'rust-lapper',{})
+        label=entry.get('version') or (f"Git source date: {entry['source_date']}" if entry.get('source_date') else 'Not recorded')
+        if entry.get('modified'): label+=' (modified snapshot)'
+        source=entry.get('source','')
+        link=('<a href="'+html.escape(source,quote=True)+'">Source</a>') if source.startswith('https://') else '—'
+        version_rows.append([html.escape(tool),html.escape(label),link])
+        version_md.append([tool,label,source or '—'])
+    body+='<h2>Tools used</h2>'+table(['Tool','Version / source date','Source'],version_rows)
+    md+=['## Tools used','',*md_table(['Tool','Version / source date','Source'],version_md),'']
     body+='<details class="extra"><summary>Construction times (µs)</summary>'+table(['Dataset','Order',*tools],build_values)+'</details>'
     md+=['## Construction (µs)','',*md_table(['Dataset','Order',*tools],build_values),'']
     inputs=sorted(meta.get('prepared_inputs',{}).items(),key=lambda item:workload_key(tuple(item[0].rsplit('-',1))))
@@ -457,10 +493,14 @@ def main():
                     try: meta[field]=command(['sysctl','-n',key])
                     except RuntimeError as e: meta[field]='unavailable: '+str(e)
             src=prepare_source(repo,out)
+
             meta['source_files']={str(f.relative_to(src)):sha(f) for f in sorted(src.rglob('*')) if f.is_file()}
             meta['runner_files']={name:sha(HERE/name) for name in ('run_benchmarks.py','rust_driver.rs','Cargo.lock','make_site.py')}
             stage=time.perf_counter()
             cpp,rust=build(src,out,log)
+            resolved=json.loads((out/'cargo-metadata.json').read_text())
+            meta['dependencies']={p['name']:{'version':p['version'],'source':p['source']} for p in resolved['packages'] if p['name'] in ('coitrees','rust-lapper')}
+            meta['tool_versions']=tool_versions(repo,src,meta['dependencies'],initial_commit)
             meta['build_seconds']=round(time.perf_counter()-stage,3)
             stage=time.perf_counter()
             meta['binary_sha256']={str(f.name):sha(f) for f in (cpp,rust)}
