@@ -1,0 +1,61 @@
+# Reproducible benchmark
+
+Run from the repository root with Python 3.10+, a C++17 compiler and Rust
+(CI pins Python 3.12, GCC 13 and Rust 1.87.0):
+
+```sh
+python3 test/benchmarking/run_benchmarks.py --output benchmark-results
+```
+
+The default runs all eight datasets in sorted and seeded shuffled order. Real
+inputs retain a deterministic 25% sample across each file, after filtering to
+nonempty chr1 intervals. Reciprocal comparisons use identical samples.
+Mitochondrial reads are restricted to starts in the first 1,000 bp; interval ends
+are preserved. Use `--sample-fraction 0.5` or `1.0` for larger inputs and
+`--mito-window 0` for the whole mitochondrial chromosome. Sampling both sides
+reduces coverage and output volume; parameters and exact inputs are recorded.
+`--smoke` caps each sampled input at 1,000 records using reservoir sampling;
+`--max-records` offers another cap. Smoke timings are validation only.
+
+The fixed-width simulation defaults to 250,000 references and 25,000 queries,
+all 150 bp, with independent uniform starts in a 3.75 Mb window (10× reference
+coverage). Counts and window scale with the sampling fraction. Seeds are
+`--seed` and `--seed + 1`.
+
+The runner downloads and verifies the release archive, builds SuperIntervals
+C++/Rust, IITree, IntervalTree, NCLS, COITrees and rust-lapper, then checks results
+against independent hit-count and payload-checksum oracles. BED coordinates are
+half-open; inclusive APIs receive end−1. Find fills a reusable vector; stream
+consumes borrowed values without making a list; count uses specialised APIs.
+Compare tools within each operation. Reciprocal directions appear together.
+
+One output folder contains `report.html`, Markdown, embedded timing heatmaps,
+raw and summary CSVs, `runtimes.csv`, metadata, logs, source snapshots and exact
+prepared inputs. It must be new. Query timings exclude I/O; construction is
+reported separately. Medians and Q1–Q3 summarise repeated measurements.
+Elapsed process times include parsing and validation. Measure one repeat with
+`--repeats 1 --warmups 0`; regenerate reports using `--report-only`.
+
+## GitHub Actions and Pages
+
+The workflow runs on relevant pushes to main and can be triggered manually.
+It defaults to all datasets at 25%, five measured repetitions and one warmup,
+on both Ubuntu x86-64 and Arm64. Manual inputs select architecture, fraction,
+repetitions and full/compact/smoke suites. Compact selects rna–annotation,
+genes–DB53, ONT–DB53 and fixed-width. CPU model, architecture, native compiler
+flags, toolchains and input hashes are recorded; hosted CPU models can vary.
+
+Enable **Settings → Pages → Source: GitHub Actions** once. Successful non-smoke
+runs on the default branch publish one page with architecture tabs. The Actions
+summary links the page. CSVs and metadata are accessible there without an
+artifact download; timing history retains the latest 30 runs in `history.json`.
+Source snapshots and prepared inputs remain downloadable Actions artifacts for
+30 days. Results are generated, never committed, and require no separate branch
+or repository. Failed benchmark jobs leave the last successful page intact.
+
+Dataset: release v0.2.0 `data.tar.gz`, SHA256
+`c98159506689c412a909505e79576035b42ab50a4930d6c693ef9517756039de`.
+C/C++ and COITrees copies come from `test/3rd-party`. Rust-lapper 1.1.0 is bundled
+there because the existing gitlink is not initialised in a fresh checkout;
+its library source matches upstream commit
+`a15c7bb4fdb54cfe62fea90ca5440d04cd200ef5`.

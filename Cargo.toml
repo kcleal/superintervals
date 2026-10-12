@@ -1,7 +1,7 @@
 [package]
 name = "superintervals"
 description = "Interval overlap library"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Kez Cleal. <clealk@cardiff.ac.uk>"]
 edition = "2021"
 repository = "https://github.com/kcleal/superintervals"
@@ -65,3 +65,15 @@ path = "test/set_ops.rs"
 [[test]]
 name = "has_overlaps"
 path = "test/has_overlaps.rs"
+
+[[test]]
+name = "sorting"
+path = "test/sorting.rs"
+
+[[test]]
+name = "counting"
+path = "test/counting.rs"
+
+[[test]]
+name = "iterators"
+path = "test/iterators.rs"

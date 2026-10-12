@@ -46,3 +46,7 @@
 /src/variants/bench2d
 /src/variants/probe2d_buildlog.txt
 /src/variants/probe2d_results.csv
+
+# Generated benchmark artifacts
+/benchmark-results/
+/test/benchmarking/__pycache__/

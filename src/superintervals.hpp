@@ -1,7 +1,10 @@
-// Version 1.0.2
+// Version 1.0.3
 #pragma once
 
 #include <algorithm>
+#include <array>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include <climits>
 #include <cstdint>
@@ -114,19 +117,7 @@ class IntervalMap {
             return;
         }
         sort_intervals();
-        branch.resize(starts.size(), SIZE_MAX);
-        std::vector<std::pair<S, size_t>> br;
-        br.reserve((starts.size() / 10) + 1);
-        br.emplace_back() = {ends[0], 0};
-        for (size_t i=1; i < ends.size(); ++i) {
-            while (!br.empty() && br.back().first < ends[i]) {
-                br.pop_back();
-            }
-            if (!br.empty()) {
-                branch[i] = br.back().second;
-            }
-            br.emplace_back() = {ends[i], i};
-        }
+        build_branches();
     }
 
     /**
@@ -325,11 +316,11 @@ class IntervalMap {
     public:
         ValueIterator(const IntervalMap* parent, size_t pos, S query_start)
             : parent_(parent), current_pos_(pos), query_start_(query_start),
-              has_value_(false), value_{} {
+              has_value_(false), value_pos_(SIZE_MAX) {
             next();
         }
 
-        const T& operator*() const { return value_; }
+        const T& operator*() const { return parent_->data[value_pos_]; }
 
         ValueIterator& operator++() {
             next();
@@ -351,7 +342,7 @@ class IntervalMap {
                 return;
             }
             if (query_start_ <= parent_->ends[current_pos_]) {
-                value_ = parent_->data[current_pos_];
+                value_pos_ = current_pos_;
                 current_pos_ -= 1;
                 has_value_ = true;
                 return;
@@ -362,7 +353,7 @@ class IntervalMap {
                     break;
                 }
                 if (query_start_ <= parent_->ends[current_pos_]) {
-                    value_ = parent_->data[current_pos_];
+                    value_pos_ = current_pos_;
                     current_pos_ -= 1;
                     has_value_ = true;
                     return;
@@ -376,7 +367,7 @@ class IntervalMap {
         mutable size_t current_pos_;
         S query_start_;
         mutable bool has_value_;
-        mutable T value_;
+        mutable size_t value_pos_;
     };
 
     class ValueRange {
@@ -396,7 +387,8 @@ class IntervalMap {
     };
 
     /**
-     * @brief Creates a range object for iterating over interval values that intersect [start, end]
+     * @brief Borrows interval values intersecting [start, end], without copying.
+     * References point directly into data; rebuilding or mutating the map can invalidate them.
      * @param start Start point of the search range
      * @param end End point of the search range
      * @return ValueRange object that can be used with range-based for loops
@@ -674,7 +666,6 @@ class IntervalMap {
 
         int32x4_t start_vec = vdupq_n_s32(start);
         constexpr size_t simd_width = 128 / (sizeof(S) * 8);
-        uint32x4_t ones = vdupq_n_u32(1);
         constexpr size_t block = simd_width * 8;  // 2 cache lines
         constexpr simd_kind active_simd = simd_kind::neon;
 
@@ -698,7 +689,7 @@ class IntervalMap {
                         }
                     }
                 }
-                #if defined(__AVX2__)
+                #if !defined(SI_NOSIMD) && defined(__AVX2__)
                 else if constexpr (active_simd == simd_kind::avx2) {
 //                    while (i > block) {
 //                        size_t count = 0;
@@ -719,10 +710,10 @@ class IntervalMap {
                         size_t j = i - block + 1;
 
                         // Load all 4 vectors
-                        __m256i ends_vec0 = _mm256_load_si256((__m256i*)(&ends[j]));
-                        __m256i ends_vec1 = _mm256_load_si256((__m256i*)(&ends[j + simd_width]));
-                        __m256i ends_vec2 = _mm256_load_si256((__m256i*)(&ends[j + 2 * simd_width]));
-                        __m256i ends_vec3 = _mm256_load_si256((__m256i*)(&ends[j + 3 * simd_width]));
+                        __m256i ends_vec0 = _mm256_loadu_si256((__m256i*)(&ends[j]));
+                        __m256i ends_vec1 = _mm256_loadu_si256((__m256i*)(&ends[j + simd_width]));
+                        __m256i ends_vec2 = _mm256_loadu_si256((__m256i*)(&ends[j + 2 * simd_width]));
+                        __m256i ends_vec3 = _mm256_loadu_si256((__m256i*)(&ends[j + 3 * simd_width]));
 
                         // Compare all vectors
                         __m256i cmp_mask0 = _mm256_cmpgt_epi32(start_vec, ends_vec0);
@@ -747,7 +738,7 @@ class IntervalMap {
                         }
                     }
                 }
-                #elif defined(__ARM_NEON__) || defined(__aarch64__)
+                #elif !defined(SI_NOSIMD) && (defined(__ARM_NEON__) || defined(__aarch64__))
                 else {  // NEON
 //                    while (i > block) {
 //                        size_t count = 0;
@@ -777,31 +768,20 @@ class IntervalMap {
                         int32x4_t ends_vec6 = vld1q_s32(&ends[j + 6 * simd_width]);
                         int32x4_t ends_vec7 = vld1q_s32(&ends[j + 7 * simd_width]);
 
-                        // Compare all vectors
-                        uint32x4_t mask0 = vcgtq_s32(start_vec, ends_vec0);
-                        uint32x4_t mask1 = vcgtq_s32(start_vec, ends_vec1);
-                        uint32x4_t mask2 = vcgtq_s32(start_vec, ends_vec2);
-                        uint32x4_t mask3 = vcgtq_s32(start_vec, ends_vec3);
-                        uint32x4_t mask4 = vcgtq_s32(start_vec, ends_vec4);
-                        uint32x4_t mask5 = vcgtq_s32(start_vec, ends_vec5);
-                        uint32x4_t mask6 = vcgtq_s32(start_vec, ends_vec6);
-                        uint32x4_t mask7 = vcgtq_s32(start_vec, ends_vec7);
-
-                        // Convert to boolean masks
-                        uint32x4_t bool_mask0 = vaddq_u32(mask0, ones);
-                        uint32x4_t bool_mask1 = vaddq_u32(mask1, ones);
-                        uint32x4_t bool_mask2 = vaddq_u32(mask2, ones);
-                        uint32x4_t bool_mask3 = vaddq_u32(mask3, ones);
-                        uint32x4_t bool_mask4 = vaddq_u32(mask4, ones);
-                        uint32x4_t bool_mask5 = vaddq_u32(mask5, ones);
-                        uint32x4_t bool_mask6 = vaddq_u32(mask6, ones);
-                        uint32x4_t bool_mask7 = vaddq_u32(mask7, ones);
-
-                        // Sum all lanes and accumulate
-                        size_t count = vaddvq_u32(bool_mask0) + vaddvq_u32(bool_mask1) +
-                                       vaddvq_u32(bool_mask2) + vaddvq_u32(bool_mask3) +
-                                       vaddvq_u32(bool_mask4) + vaddvq_u32(bool_mask5) +
-                                       vaddvq_u32(bool_mask6) + vaddvq_u32(bool_mask7);
+                        // Accumulate all-ones hit masks and negate modulo 2^32
+                        // before a single horizontal reduction (0..32 hits).
+                        uint32x4_t mask0 = vcgeq_s32(ends_vec0, start_vec);
+                        uint32x4_t mask1 = vcgeq_s32(ends_vec1, start_vec);
+                        uint32x4_t mask2 = vcgeq_s32(ends_vec2, start_vec);
+                        uint32x4_t mask3 = vcgeq_s32(ends_vec3, start_vec);
+                        uint32x4_t mask4 = vcgeq_s32(ends_vec4, start_vec);
+                        uint32x4_t mask5 = vcgeq_s32(ends_vec5, start_vec);
+                        uint32x4_t mask6 = vcgeq_s32(ends_vec6, start_vec);
+                        uint32x4_t mask7 = vcgeq_s32(ends_vec7, start_vec);
+                        uint32x4_t pairs0 = vaddq_u32(vaddq_u32(mask0, mask1), vaddq_u32(mask2, mask3));
+                        uint32x4_t pairs1 = vaddq_u32(vaddq_u32(mask4, mask5), vaddq_u32(mask6, mask7));
+                        uint32x4_t lane_counts = vsubq_u32(vdupq_n_u32(0), vaddq_u32(pairs0, pairs1));
+                        size_t count = vaddvq_u32(lane_counts);
 
                         found += count;
                         i -= block;
@@ -1371,6 +1351,28 @@ class IntervalMap {
 
     protected:
 
+    // Previous branch links encode the monotonic stack. Each index is pushed
+    // once and popped at most once; rebuilding overwrites every link.
+    void build_branches() {
+        const size_t n = ends.size();
+        branch.resize(n);
+        if (n == 0) return;
+        // Fix the buffers once: every link is overwritten, and traversal only
+        // reads initialized links strictly before i.
+        size_t* links = branch.data();
+        const S* stop = ends.data();
+        links[0] = SIZE_MAX;
+        for (size_t i = 1; i < n; ++i) {
+            size_t previous = i - 1;
+            const S end = stop[i];
+            while (previous != SIZE_MAX && stop[previous] < end) {
+                previous = links[previous];
+            }
+            links[i] = previous;
+        }
+    }
+
+
     // Returns indices into starts/ends/data in ascending (start, end) order.
     // Cheap when already sorted (the common post-build() case).
     std::vector<size_t> sorted_order() const {
@@ -1400,6 +1402,50 @@ class IntervalMap {
 
     enum class simd_kind { none, avx2, neon };
 
+    // Integer keys encode start ascending, then end descending. Stable radix
+    // passes move payloads and preserve duplicate order without comparing them.
+    void sort_radix() {
+        struct Record { uint64_t key; T value; };
+        constexpr uint32_t sign = std::is_signed<S>::value ? 0x80000000U : 0U;
+        std::vector<Record> records;
+        records.reserve(starts.size());
+        for (size_t i = 0; i < starts.size(); ++i) {
+            const uint32_t start = static_cast<uint32_t>(starts[i]) ^ sign;
+            const uint32_t end = static_cast<uint32_t>(ends[i]) ^ sign;
+            records.push_back({(static_cast<uint64_t>(start) << 32) | static_cast<uint32_t>(~end),
+                               std::move(data[i])});
+        }
+        std::vector<Record> scratch(records.size());
+        std::array<size_t, 2048> offsets{};
+        for (unsigned shift = 0; shift < 64; shift += 11) {
+            offsets.fill(0);
+            for (const auto& record : records) ++offsets[(record.key >> shift) & 2047];
+            size_t occupied = 0;
+            for (size_t n : offsets) occupied += (n != 0);
+            if (occupied <= 1) continue;
+            size_t sum = 0;
+            for (size_t& n : offsets) { const size_t next = sum + n; n = sum; sum = next; }
+            for (auto& record : records) {
+                const size_t bucket = (record.key >> shift) & 2047;
+                scratch[offsets[bucket]++] = std::move(record);
+            }
+            records.swap(scratch);
+        }
+        for (size_t i = 0; i < records.size(); ++i) {
+            const uint32_t start = static_cast<uint32_t>(records[i].key >> 32) ^ sign;
+            const uint32_t end = ~static_cast<uint32_t>(records[i].key) ^ sign;
+            if constexpr (std::is_signed<S>::value) {
+                // Avoid an out-of-range unsigned-to-signed conversion in C++17.
+                starts[i] = static_cast<S>(static_cast<int64_t>(start) - ((start & sign) ? (int64_t{1} << 32) : 0));
+                ends[i] = static_cast<S>(static_cast<int64_t>(end) - ((end & sign) ? (int64_t{1} << 32) : 0));
+            } else {
+                starts[i] = static_cast<S>(start);
+                ends[i] = static_cast<S>(end);
+            }
+            data[i] = std::move(records[i].value);
+        }
+    }
+
     std::vector<Interval<S, T>> tmp;
 
     template<typename CompareFunc>
@@ -1407,13 +1453,13 @@ class IntervalMap {
         size_t range_size = end_i - start_i;
         tmp.resize(range_size);
         for (size_t i = 0; i < range_size; ++i) {
-            tmp[i] = Interval<S, T>(starts[start_i + i], ends[start_i + i], data[start_i + i]);
+            tmp[i] = Interval<S, T>(starts[start_i + i], ends[start_i + i], std::move(data[start_i + i]));
         }
         std::sort(tmp.begin(), tmp.end(), compare);
         for (size_t i = 0; i < range_size; ++i) {
             starts[start_i + i] = tmp[i].start;
             ends[start_i + i] = tmp[i].end;
-            data[start_i + i] = tmp[i].data;
+            data[start_i + i] = std::move(tmp[i].data);
         }
     }
 
@@ -1423,8 +1469,14 @@ class IntervalMap {
      */
     void sort_intervals() {
         if (!start_sorted) {
-            sort_block(0, starts.size(),
-                [](const Interval<S, T>& a, const Interval<S, T>& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
+            if constexpr (std::is_integral<S>::value && sizeof(S) == 4 && sizeof(T) <= 32) {
+                if (starts.size() >= 4096) sort_radix();
+                else sort_block(0, starts.size(),
+                    [](const Interval<S, T>& a, const Interval<S, T>& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
+            } else {
+                sort_block(0, starts.size(),
+                    [](const Interval<S, T>& a, const Interval<S, T>& b) { return (a.start < b.start || (a.start == b.start && a.end > b.end)); });
+            }
             start_sorted = true;
             end_sorted = true;
         } else if (!end_sorted) {  // only sort parts that need sorting - ends in descending order
@@ -1483,19 +1535,7 @@ public:
         eytz_index.resize(this->starts.size() + 1);
         eytzinger(&this->starts[0], this->starts.size());
 
-        this->branch.resize(this->starts.size(), SIZE_MAX);
-        std::vector<std::pair<S, size_t>> br;
-        br.reserve(1000);
-        br.emplace_back() = {this->ends[0], 0};
-        for (size_t i=1; i < this->ends.size(); ++i) {
-            while (!br.empty() && br.back().first < this->ends[i]) {
-                br.pop_back();
-            }
-            if (!br.empty()) {
-                this->branch[i] = br.back().second;
-            }
-            br.emplace_back() = {this->ends[i], i};
-        }
+        this->build_branches();
     }
 
     /**

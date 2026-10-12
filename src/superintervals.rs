@@ -113,22 +113,52 @@ impl<T: Clone> IntervalMap<T>
         }
     }
 
+    // Stable LSD radix sorting for compact payloads. Option lets each pass move
+    // owned payloads safely between buffers without cloning them or raw pointers.
+    fn sort_radix(&mut self) {
+        struct Record<T> { key: u64, value: Option<T> }
+        let starts = &self.starts;
+        let ends = &self.ends;
+        let mut records: Vec<_> = self.data.drain(..).enumerate().map(|(i, value)| {
+            let start = (starts[i] as u32) ^ 0x8000_0000;
+            let end = (ends[i] as u32) ^ 0x8000_0000;
+            Record { key: ((start as u64) << 32) | ((!end) as u64), value: Some(value) }
+        }).collect();
+        let mut scratch: Vec<_> = std::iter::repeat_with(|| Record { key: 0, value: None })
+            .take(records.len()).collect();
+        let mut offsets = [0usize; 2048];
+        for shift in (0..64).step_by(11) {
+            offsets.fill(0);
+            for record in &records { offsets[((record.key >> shift) & 2047) as usize] += 1; }
+            if offsets.iter().filter(|&&n| n != 0).count() <= 1 { continue; }
+            let mut sum = 0;
+            for n in &mut offsets { let next = sum + *n; *n = sum; sum = next; }
+            for record in &mut records {
+                let bucket = ((record.key >> shift) & 2047) as usize;
+                scratch[offsets[bucket]] = Record { key: record.key, value: record.value.take() };
+                offsets[bucket] += 1;
+            }
+            std::mem::swap(&mut records, &mut scratch);
+        }
+        for (i, record) in records.into_iter().enumerate() {
+            self.starts[i] = ((record.key >> 32) as u32 ^ 0x8000_0000) as i32;
+            self.ends[i] = (!(record.key as u32) ^ 0x8000_0000) as i32;
+            self.data.push(record.value.expect("radix pass preserves every payload"));
+        }
+    }
+
     /// Sorts the intervals by start and -end.
     pub fn sort_intervals(&mut self) {
         if !self.start_sorted {
-            self.sort_block(0, self.starts.len(), |a, b| {
-                if a.start < b.start {
-                    Ordering::Less
-                } else if a.start == b.start {
-                    if a.end > b.end {
-                        Ordering::Less
-                    } else {
-                        Ordering::Greater
-                    }
-                } else {
-                    Ordering::Greater
-                }
-            });
+            // Retain comparison sorting for small inputs and wide records, whose
+            // repeated movement would make radix sorting expensive.
+            if self.starts.len() >= 4096 && std::mem::size_of::<T>() <= 32 {
+                self.sort_radix();
+            } else {
+                self.sort_block(0, self.starts.len(), |a, b| {
+                    a.start.cmp(&b.start).then_with(|| b.end.cmp(&a.end))
+                });
+            }
             self.start_sorted = true;
             self.end_sorted = true;
         } else if !self.end_sorted {
@@ -157,19 +187,21 @@ impl<T: Clone> IntervalMap<T>
             return;
         }
         self.sort_intervals();
-        self.branch.resize(self.starts.len(), usize::MAX);
-        let mut br: Vec<(i32, usize)> = Vec::with_capacity((self.starts.len() / 10) + 1);
-        unsafe {
-            br.push((*self.ends.get_unchecked(0), 0));
-            for i in 1..self.ends.len() {
-                while !br.is_empty() && br.last().unwrap().0 < *self.ends.get_unchecked(i) {
-                    br.pop();
+        // The previous branch links form the monotonic stack. Each interval
+        // is pushed once and popped at most once: linear time, no scratch stack.
+        self.branch.clear();
+        self.branch.reserve(self.starts.len());
+        for i in 0..self.ends.len() {
+            let mut previous = i.wrapping_sub(1);
+            // All earlier links are initialized and point strictly backwards.
+            unsafe {
+                while previous != usize::MAX
+                    && *self.ends.get_unchecked(previous) < *self.ends.get_unchecked(i)
+                {
+                    previous = *self.branch.get_unchecked(previous);
                 }
-                if !br.is_empty() {
-                    *self.branch.get_unchecked_mut(i) = br.last().unwrap().1;
-                }
-                br.push((*self.ends.get_unchecked(i), i));
             }
+            self.branch.push(previous);
         }
     }
 
@@ -493,7 +525,6 @@ impl<T: Clone> IntervalMap<T>
                 let start_vec = vdupq_n_s32(start);
                 const SIMD_WIDTH: usize = 4; // 128 bits / 32 bits = 4 elements
                 const BLOCK: usize = SIMD_WIDTH * 8; // 2 cache lines
-                let ones = vdupq_n_u32(1);
                 while i > 0 {
                     if start <= *self.ends.get_unchecked(i) {
                         found += 1;
@@ -529,31 +560,21 @@ impl<T: Clone> IntervalMap<T>
                             let ends_vec6 = vld1q_s32(self.ends.as_ptr().add(j + 6 * SIMD_WIDTH) as *const i32);
                             let ends_vec7 = vld1q_s32(self.ends.as_ptr().add(j + 7 * SIMD_WIDTH) as *const i32);
 
-                            // Compare all vectors
-                            let mask0 = vcgtq_s32(start_vec, ends_vec0);
-                            let mask1 = vcgtq_s32(start_vec, ends_vec1);
-                            let mask2 = vcgtq_s32(start_vec, ends_vec2);
-                            let mask3 = vcgtq_s32(start_vec, ends_vec3);
-                            let mask4 = vcgtq_s32(start_vec, ends_vec4);
-                            let mask5 = vcgtq_s32(start_vec, ends_vec5);
-                            let mask6 = vcgtq_s32(start_vec, ends_vec6);
-                            let mask7 = vcgtq_s32(start_vec, ends_vec7);
-
-                            // Convert to boolean masks
-                            let bool_mask0 = vaddq_u32(mask0, ones);
-                            let bool_mask1 = vaddq_u32(mask1, ones);
-                            let bool_mask2 = vaddq_u32(mask2, ones);
-                            let bool_mask3 = vaddq_u32(mask3, ones);
-                            let bool_mask4 = vaddq_u32(mask4, ones);
-                            let bool_mask5 = vaddq_u32(mask5, ones);
-                            let bool_mask6 = vaddq_u32(mask6, ones);
-                            let bool_mask7 = vaddq_u32(mask7, ones);
-
-                            // Sum all lanes and accumulate
-                            let count = vaddvq_u32(bool_mask0) as usize + vaddvq_u32(bool_mask1) as usize +
-                                        vaddvq_u32(bool_mask2) as usize + vaddvq_u32(bool_mask3) as usize +
-                                        vaddvq_u32(bool_mask4) as usize + vaddvq_u32(bool_mask5) as usize +
-                                        vaddvq_u32(bool_mask6) as usize + vaddvq_u32(bool_mask7) as usize;
+                            // True comparisons have all bits set. Sum the masks in
+                            // SIMD lanes, then negate modulo 2^32 to obtain 0..8
+                            // hits per lane. Only one horizontal reduction is needed.
+                            let mask0 = vcgeq_s32(ends_vec0, start_vec);
+                            let mask1 = vcgeq_s32(ends_vec1, start_vec);
+                            let mask2 = vcgeq_s32(ends_vec2, start_vec);
+                            let mask3 = vcgeq_s32(ends_vec3, start_vec);
+                            let mask4 = vcgeq_s32(ends_vec4, start_vec);
+                            let mask5 = vcgeq_s32(ends_vec5, start_vec);
+                            let mask6 = vcgeq_s32(ends_vec6, start_vec);
+                            let mask7 = vcgeq_s32(ends_vec7, start_vec);
+                            let pairs0 = vaddq_u32(vaddq_u32(mask0, mask1), vaddq_u32(mask2, mask3));
+                            let pairs1 = vaddq_u32(vaddq_u32(mask4, mask5), vaddq_u32(mask6, mask7));
+                            let lane_counts = vsubq_u32(vdupq_n_u32(0), vaddq_u32(pairs0, pairs1));
+                            let count = vaddvq_u32(lane_counts) as usize;
 
                             found += count;
                             i -= BLOCK;
@@ -1135,6 +1156,21 @@ impl<T: Clone> IntervalMap<T>
     where
         F: Fn(&Interval<T>, &Interval<T>) -> Ordering,
     {
+        if start_i == 0 && end_i == self.starts.len() {
+            // A full sort can move payloads; partial blocks retain their existing
+            // path to avoid shifting the rest of the payload vector.
+            let starts = &self.starts;
+            let ends = &self.ends;
+            let mut tmp: Vec<_> = self.data.drain(..).enumerate().map(|(i, data)|
+                Interval { start: starts[i], end: ends[i], data }).collect();
+            tmp.sort_by(compare);
+            for (i, interval) in tmp.into_iter().enumerate() {
+                self.starts[i] = interval.start;
+                self.ends[i] = interval.end;
+                self.data.push(interval.data);
+            }
+            return;
+        }
         unsafe {
             let range_size = end_i - start_i;
             let mut tmp: Vec<Interval<T>> = Vec::with_capacity(range_size);
@@ -1278,38 +1314,19 @@ impl<'a, T: Clone> Iterator for KeyIterator<'a, T> {
     }
 }
 
+/// An iterator over borrowed payloads; advancing it does not clone values.
 pub struct ValueIterator<'a, T> {
-    tree: &'a IntervalMap<T>,
-    current_idx: usize,
-    query_start: i32,
+    indices: IndexIterator<'a, T>,
 }
 
 impl<'a, T: Clone> Iterator for ValueIterator<'a, T> {
-    type Item = T;
+    type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_idx == usize::MAX {
-            return None;
-        }
-        unsafe {
-            if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
-                let value = self.tree.data.get_unchecked(self.current_idx).clone();
-                self.current_idx = self.current_idx.wrapping_sub(1);
-                return Some(value);
-            }
-            loop {
-                self.current_idx = *self.tree.branch.get_unchecked(self.current_idx);
-                if self.current_idx == usize::MAX {
-                    break;
-                }
-                if self.query_start <= *self.tree.ends.get_unchecked(self.current_idx) {
-                    let value = self.tree.data.get_unchecked(self.current_idx).clone();
-                    self.current_idx = self.current_idx.wrapping_sub(1);
-                    return Some(value);
-                }
-            }
-        }
-        None
+        self.indices.next().map(|i| {
+            // IndexIterator yields only valid indices from this same map.
+            unsafe { self.indices.tree.data.get_unchecked(i) }
+        })
     }
 }
 
@@ -1357,17 +1374,10 @@ impl<T: Clone> IntervalMap<T> {
         }
     }
 
-    /// Returns an iterator over values (data) of intervals that intersect [start, end]
-    pub fn search_values_iter(&self, start: i32, end: i32) -> ValueIterator<T> {
-        let current_idx = if self.starts.is_empty() {
-            usize::MAX
-        } else {
-            self.upper_bound(end)
-        };
-        ValueIterator {
-            tree: self,
-            current_idx,
-            query_start: start,
-        }
+    /// Borrows matching payloads in descending index order, without cloning.
+    /// Returned references may outlive the iterator but cannot outlive this map.
+    /// Use `.cloned()` for owned payloads, or `.copied()` when `T: Copy`.
+    pub fn search_values_iter(&self, start: i32, end: i32) -> ValueIterator<'_, T> {
+        ValueIterator { indices: self.search_idxs_iter(start, end) }
     }
 }
