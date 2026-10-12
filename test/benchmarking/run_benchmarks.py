@@ -247,8 +247,8 @@ def run_suite(cpp,rust,ref,query,order,seed,log,timeout,on_tool_done=None):
         elapsed=time.perf_counter()-started
         result.extend(measured)
         if on_tool_done:
+            print(f'  {measured[0][0]}: {elapsed:.2f} s total process time (includes I/O, build, all operations and validation)',flush=True)
             on_tool_done(measured[0][0],elapsed)
-            print(f'  {measured[0][0]}: {elapsed:.2f} s',flush=True)
     return result
 
 def number(value):
@@ -519,6 +519,10 @@ def main():
             if any(row[-1]!=expected for row in fixture): raise RuntimeError(f'Boundary fixture mismatch: expected {expected}, got {fixture}')
             meta['fixture_expected_hits']=expected; meta['fixture_passed']=True
             rows=[]; cache={}
+            selected_pairs=[pair for pair in PAIRS if not a.pairs or pair[0] in a.pairs]
+            progress_total=len(selected_pairs)*2*(a.warmups+a.repeats)*7
+            progress_done=0
+            print(f'Total progress: 0/{progress_total} tool processes completed (0.0%; includes warmups, excludes setup and boundary fixture)',flush=True)
             meta['sampling']={}
             fields=['dataset','order','repeat','tool','operation','reference_n','query_n','build_us','query_us','hits','expected_hits']
             with open(out/'raw.csv','w',newline='') as f, open(out/'runtimes.csv','w',newline='') as runtime_file:
@@ -549,6 +553,9 @@ def main():
                         for repeat in range(-a.warmups,a.repeats):
                             print(f'{label} {order} '+('warmup' if repeat<0 else f'repeat {repeat+1}/{a.repeats}'),flush=True)
                             def completed(tool,seconds):
+                                nonlocal progress_done
+                                progress_done+=1
+                                print(f'Total progress: {progress_done}/{progress_total} tool processes completed ({100*progress_done/progress_total:.1f}%; includes warmups)',flush=True)
                                 if repeat>=0:
                                     runtimes.writerow([label,order,repeat+1,tool,f'{seconds:.6f}'])
                                     runtime_file.flush()
@@ -556,7 +563,7 @@ def main():
                             repeat_started=time.perf_counter()
                             result=run_suite(cpp,rust,ref,query,order,a.seed+pair_i*100+repeat,log,a.timeout,completed)
                             seconds=time.perf_counter()-repeat_started
-                            print(f'{label} {order}: {seconds:.2f} s per repeat',flush=True)
+                            print(f'{label} {order}: {seconds:.2f} s total process time for all tools in this repeat',flush=True)
                             if repeat>=0:
                                 meta.setdefault('repeat_wall_seconds',{}).setdefault(label+'-'+order,[]).append(round(seconds,3))
                             for tool,op,bld,elapsed,hits in result:

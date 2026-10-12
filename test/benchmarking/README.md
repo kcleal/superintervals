@@ -33,7 +33,10 @@ One output folder contains `report.html`, Markdown, embedded timing heatmaps,
 raw and summary CSVs, `runtimes.csv`, metadata, logs, source snapshots and exact
 prepared inputs. It must be new. Query timings exclude I/O; construction is
 reported separately. Medians and Q1–Q3 summarise repeated measurements.
-Elapsed process times include parsing and validation. Measure one repeat with
+Elapsed process times include parsing, construction, all supported operations
+and validation; they are not comparable query timings. Console progress counts
+completed tool processes across all selected datasets, both orders, warmups and
+measured repeats. The percentage measures completed jobs, not elapsed time. Measure one repeat with
 `--repeats 1 --warmups 0`; regenerate reports using `--report-only`.
 
 ## GitHub Actions and Pages
