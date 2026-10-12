@@ -3,7 +3,7 @@
 import argparse, csv, html, json, os, shutil, urllib.error, urllib.request
 from pathlib import Path
 
-FILES=('raw.csv','summary.csv','runtimes.csv','metadata.json','commands.log')
+FILES=('raw.csv','summary.csv','runtimes.csv','metadata.json','commands.log','timing-find.svg')
 
 def build_site(inputs, output, history_url=None):
     roots=[inputs] if (inputs/'metadata.json').exists() else sorted(p.parent for p in inputs.glob('*/metadata.json'))

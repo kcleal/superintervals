@@ -143,6 +143,8 @@ See [test/benchmarking/README.md](test/benchmarking/README.md) for the runner an
 Successful default-branch runs publish [benchmark reports](https://kcleal.github.io/superintervals/)
 with CPU architecture tabs. Exact inputs and source snapshots remain workflow artifacts.
 
+[![Find benchmark on x86-64: query times relative to the fastest tool](https://kcleal.github.io/superintervals/x86_64/timing-find.svg)](https://kcleal.github.io/superintervals/)
+
 ## Acknowledgements
 
 - The rust test program borrows heavily from the coitrees package

@@ -88,6 +88,7 @@ jobs:
           name: interval-report-${{ matrix.runner }}
           path: |
             benchmark-results/report.html
+            benchmark-results/timing-find.svg
             benchmark-results/raw.csv
             benchmark-results/summary.csv
             benchmark-results/runtimes.csv
