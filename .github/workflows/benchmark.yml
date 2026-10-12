@@ -1,0 +1,142 @@
+name: Interval benchmark
+run-name: Interval benchmark (${{ inputs.suite || 'full' }}, ${{ inputs.architecture || 'both' }})
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/superintervals.rs'
+      - 'src/superintervals.hpp'
+      - 'test/benchmarking/**'
+      - 'test/3rd-party/**'
+      - 'test/bench.cpp'
+      - 'Cargo.toml'
+      - '.github/workflows/benchmark.yml'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'All datasets, three BED pairs plus fixed-width, or smoke validation'
+        type: choice
+        default: full
+        options: [full, compact, smoke]
+      architecture:
+        description: CPU architecture
+        type: choice
+        default: both
+        options: [both, x86_64, arm64]
+      sample_fraction:
+        description: 'Seeded fraction of each input; mito starts are restricted to the first 1 kb'
+        type: choice
+        default: '0.25'
+        options: ['0.25', '0.5', '1.0']
+      repeats:
+        description: Measured repetitions (1–20)
+        type: string
+        default: '5'
+permissions:
+  contents: read
+concurrency:
+  group: interval-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ fromJSON((inputs.architecture == 'both' || inputs.architecture == '') && '["ubuntu-24.04", "ubuntu-24.04-arm"]' || inputs.architecture == 'arm64' && '["ubuntu-24.04-arm"]' || '["ubuntu-24.04"]') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    env:
+      CC: gcc-13
+      CXX: g++-13
+      BENCHMARK_RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install C/C++ and pin Rust
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13
+          rustup toolchain install 1.87.0 --profile minimal
+          rustup default 1.87.0
+      - name: Run packaged benchmarks
+        env:
+          SUITE: ${{ inputs.suite || 'full' }}
+          REPEATS: ${{ inputs.repeats || '5' }}
+          FRACTION: ${{ inputs.sample_fraction || '0.25' }}
+        shell: bash
+        run: |
+          if ! [[ "$REPEATS" =~ ^([1-9]|1[0-9]|20)$ ]]; then
+            echo 'repeats must be an integer from 1 to 20' >&2
+            exit 2
+          fi
+          case "$FRACTION" in 0.25|0.5|1.0) ;; *) exit 2 ;; esac
+          args=(--repeats "$REPEATS" --sample-fraction "$FRACTION" --mito-window 1000 --timeout 600)
+          case "$SUITE" in
+            smoke) args+=(--smoke --warmups 0) ;;
+            compact) args+=(--pairs rna-anno genes-DB53 ONT-DB53 fixed-width) ;;
+            full) ;;
+            *) exit 2 ;;
+          esac
+          python test/benchmarking/run_benchmarks.py --repo . --output benchmark-results "${args[@]}"
+      - name: Save report for Pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: interval-report-${{ matrix.runner }}
+          path: |
+            benchmark-results/report.html
+            benchmark-results/raw.csv
+            benchmark-results/summary.csv
+            benchmark-results/runtimes.csv
+            benchmark-results/metadata.json
+            benchmark-results/commands.log
+          retention-days: 30
+      - name: Save reproducibility files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interval-benchmark-${{ matrix.runner }}-${{ inputs.suite || 'full' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            benchmark-results/source/
+            benchmark-results/rust-driver/
+            benchmark-results/prepared/
+          retention-days: 30
+          if-no-files-found: warn
+  publish:
+    needs: benchmark
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && inputs.suite != 'smoke'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: interval-report-*
+          path: reports
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Build combined report
+        env:
+          BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python test/benchmarking/make_site.py --input reports --output site --history-url "$BASE_URL/history.json"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - name: Publish benchmark report
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Link published report
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: printf '## Benchmark results\n\n[View the combined architecture report](%s)\n' "$PAGE_URL" >> "$GITHUB_STEP_SUMMARY"

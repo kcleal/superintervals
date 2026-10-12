@@ -18,7 +18,7 @@ imap.build();
 let mut results = Vec::new();
 imap.search_values(4, 11, &mut results);
 
-// Or use lazy iterator interfaces
+// Or iterate over borrowed payloads without cloning
 for value in imap.search_values_iter(query_start, query_end) {
     println!("Found: {}", value);
 }
@@ -110,8 +110,10 @@ for value in imap.search_values_iter(query_start, query_end) {
 - `fn search_keys_iter(&mut self, start: i32, end: i32) -> KeyIterator<T>`  
   Iterator over keys
 
-- `fn search_values_iter(&mut self, start: i32, end: i32) -> ValueIterator<T>`  
-  Iterator over values
+- `fn search_values_iter(&self, start: i32, end: i32) -> ValueIterator<'_, T>`
+  Iterator over borrowed values (`&T`), without cloning. Use `.cloned()` for owned
+  values or `.copied()` for `Copy` payloads. This changes the previous owned-item
+  interface; callers collecting `Vec<T>` must add the appropriate adapter.
 
 ### Set Operations
 

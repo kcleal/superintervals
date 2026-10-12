@@ -110,7 +110,20 @@ SuperIntervals keeps intervals in a flat array sorted by start position. Alongsi
 a single auxiliary "branch" array (one `size_t` per interval) records, for each
 interval, the index to jump back to in order to skip over a contiguous block of
 intervals that cannot overlap the query — effectively an implicit, branch-free index
-built in a single linear pass over the sorted data.
+built in a single linear pass over the sorted data. The branch links themselves
+serve as the construction stack, avoiding a separate temporary stack.
+
+The required order is start ascending, then end descending. Rust and C++ use a
+stable radix sort for unsorted inputs of at least 4,096 intervals with compact
+payloads (up to 32 bytes); the C++ radix path requires 32-bit integer coordinates.
+Small inputs, wider payloads and other C++ coordinate types use comparison sorting.
+Already ordered inputs and equal-start groups retain their existing fast paths.
+Full-array sorting moves owned payloads rather than cloning them.
+
+Rust `search_values_iter(start, end)` borrows matching payloads. Use `.cloned()`
+to obtain owned values, or `.copied()` for `Copy` payloads. C++
+`search_values(start, end)` returns references directly to stored payloads.
+Borrowed iteration preserves descending match order and avoids payload copies.
 
 A query first binary-searches for the last interval whose start is `<= query_end`,
 then walks backwards. At each step the branch array lets it leap past whole runs of
@@ -125,20 +138,10 @@ interval, no pointers or tree nodes) that is fast to build and fast to query.
 
 ## Benchmark
 
-SuperIntervals was compared against Coitrees, Implicit Interval Tree, Interval Tree
-and NCLS across a range of genomic datasets. Finding interval intersections was on
-average ~1.5–3x faster than the next-best library (Coitrees for Rust, Implicit
-Interval Tree for C++), and SIMD counting performance was on par with Coitrees.
-
-Full methodology, datasets and per-dataset timing tables are in
-[test/benchmark.md](test/benchmark.md).
-
-An independent September 2025 benchmark by the [polars-bio](https://biodatageeks.org)
-team ([report](https://biodatageeks.org/polars-bio/blog/2025/09/05/interval-operations-benchmark--update-september-2025)) evaluated SuperIntervals as a backend data structure for polars-bio. They found it to
-be generally the fastest or tied for fastest, delivering 1.25–1.44x speedups,
-and concluded it offers reliable, well-rounded performance without worst-case
-degradation.
-
+See [test/benchmarking/README.md](test/benchmarking/README.md) for the runner and
+[manual GitHub workflow](https://github.com/kcleal/superintervals/actions/workflows/benchmark.yml).
+Successful default-branch runs publish [benchmark reports](https://kcleal.github.io/superintervals/)
+with CPU architecture tabs. Exact inputs and source snapshots remain workflow artifacts.
 
 ## Acknowledgements
 

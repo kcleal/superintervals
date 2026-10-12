@@ -36,6 +36,7 @@
 #include <utility>
 #include <tuple>
 #include <algorithm>
+#include <string>
 #include <random>
 
 using Map = si::IntervalMap<int, int>;
@@ -515,9 +516,174 @@ void test_span() {
 // -----------------------------------------------------------------------------
 //  Runner
 // -----------------------------------------------------------------------------
+void test_count_simd_boundaries() {
+    const int queries[] = {INT_MIN, -101, -100, -15, -1, 0, 1, 15, 100, 101, INT_MAX};
+    for (int n = 0; n <= 129; ++n) {
+        Map index;
+        std::vector<std::pair<int, int>> refs;
+        for (int i = 0; i < n; ++i) {
+            std::pair<int, int> interval;
+            switch (i % 5) {
+                case 0: interval = {INT_MIN, INT_MAX}; break;
+                case 1: interval = {-100, i % 31 - 15}; break;
+                case 2: interval = {0, 0}; break;
+                case 3: interval = {i % 29 - 14, 100}; break;
+                default: interval = {i % 17, i % 17};
+            }
+            refs.push_back(interval);
+            index.add(interval.first, interval.second, i);
+        }
+        index.build();
+        for (int a : queries) for (int b : queries) {
+            if (a > b) continue;
+            size_t expected = 0;
+            for (const auto& interval : refs)
+                expected += interval.first <= b && interval.second >= a;
+            assert(index.count(a, b) == expected);
+        }
+    }
+}
+
+template<typename S>
+void check_hybrid_sort(size_t n) {
+    struct Record { S start, end; size_t id; };
+    std::vector<Record> expected;
+    si::IntervalMap<S, size_t> map;
+    uint64_t state = 1729;
+    for (size_t id = 0; id < n; ++id) {
+        state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+        S start = static_cast<S>(static_cast<int64_t>(state % 100000) - 50000);
+        S end = start + static_cast<S>(state % 100);
+        // Unsigned wrapping above is avoided in the explicit extrema/duplicate cases.
+        if (end < start) std::swap(start,end);
+        if (id % 13 == 0) { start = std::numeric_limits<S>::lowest(); end = std::numeric_limits<S>::max(); }
+        if (id % 13 == 1) { start = 0; end = 8; }
+        if (id % 13 == 2) { start = 0; end = 0; }
+        if (id % 13 == 3) { start = std::numeric_limits<S>::max(); end = start; }
+        expected.push_back({start,end,id}); map.add(start,end,id);
+    }
+    const auto input = expected;
+    std::stable_sort(expected.begin(),expected.end(),[](const Record& a,const Record& b) {
+        return a.start < b.start || (a.start == b.start && a.end > b.end);
+    });
+    map.build();
+    std::vector<bool> seen(n,false);
+    for (size_t i = 0; i < n; ++i) {
+        assert(map.starts[i] == expected[i].start && map.ends[i] == expected[i].end);
+        const size_t id = map.data[i]; assert(id < n && !seen[id]); seen[id] = true;
+        assert(input[id].start == map.starts[i] && input[id].end == map.ends[i]);
+        if (n >= 4096 && sizeof(S) == 4) assert(id == expected[i].id);
+    }
+    if constexpr (std::is_same<S,int32_t>::value) {
+        for (auto query : {std::pair<S,S>{INT32_MIN,INT32_MIN}, {-1,0}, {0,8}, {INT32_MAX,INT32_MAX}}) {
+            size_t want = 0;
+            for (const auto& r : input) want += (r.start <= query.second && query.first <= r.end);
+            assert(map.count(query.first,query.second) == want);
+            std::vector<size_t> got; map.search_values(query.first,query.second,got);
+            assert(got.size() == want);
+        }
+    }
+}
+
+void test_hybrid_sort() {
+    std::cout << "hybrid sort, ";
+    for (size_t n : {0,1,32,4095,4096,4097,8192}) {
+        check_hybrid_sort<int32_t>(n);
+        check_hybrid_sort<uint32_t>(n);
+    }
+    check_hybrid_sort<int64_t>(5000); // wider coordinates retain comparison sorting
+    si::IntervalMap<int32_t,std::string> strings;
+    for (int i = 4999; i >= 0; --i) strings.add(i,i+4,std::to_string(i));
+    strings.build();
+    for (size_t i = 0; i < strings.size(); ++i) assert(strings.data[i] == std::to_string(i));
+    si::IntervalMap<int32_t,std::array<uint64_t,16>> wide;
+    for (int i = 4999; i >= 0; --i) {
+        std::array<uint64_t,16> value{}; value.fill(static_cast<uint64_t>(i));
+        wide.add(i,i+4,value);
+    }
+    wide.build();
+    for (size_t i = 0; i < wide.size(); ++i) assert(wide.data[i][0] == i && wide.data[i][15] == i);
+    Map tied;
+    for (int i = 0; i < 5000; ++i) tied.add(0,i,i);
+    tied.build();
+    for (size_t i = 0; i < tied.size(); ++i) assert(tied.ends[i] == 4999-static_cast<int>(i) && tied.data[i] == tied.ends[i]);
+    si::IntervalMap<double,int> floats;
+    for (int i = 4999; i >= 0; --i) floats.add(i+0.5,i+1.5,i);
+    floats.build();
+    for (size_t i = 0; i < floats.size(); ++i) assert(floats.starts[i] == i+0.5 && floats.data[i] == static_cast<int>(i));
+}
+
+struct CopyTracked {
+    int id = -1;
+    std::string text;
+    static size_t copies;
+    CopyTracked() = default;
+    explicit CopyTracked(int i) : id(i), text("payload-" + std::to_string(i)) {}
+    CopyTracked(const CopyTracked& other) : id(other.id), text(other.text) { ++copies; }
+    CopyTracked& operator=(const CopyTracked& other) { id=other.id; text=other.text; ++copies; return *this; }
+    CopyTracked(CopyTracked&&) = default;
+    CopyTracked& operator=(CopyTracked&&) = default;
+};
+size_t CopyTracked::copies = 0;
+
+void test_borrowed_values() {
+    std::cout << "borrowed values, ";
+    si::IntervalMap<int,CopyTracked> map;
+    map.add(10,20,CopyTracked(0)); map.add(0,100,CopyTracked(1));
+    map.add(10,20,CopyTracked(2)); map.add(30,30,CopyTracked(3)); map.build();
+    CopyTracked::copies=0;
+    for (auto query : {std::pair<int,int>{-10,-1},{10,20},{30,30},{101,200},{0,100}}) {
+        std::vector<size_t> indices; map.search_idxs(query.first,query.second,indices);
+        size_t n=0;
+        for (const auto& value : map.search_values(query.first,query.second)) {
+            assert(n<indices.size()); assert(&value==&map.data[indices[n++]]);
+            assert(value.text=="payload-"+std::to_string(value.id));
+        }
+        assert(n==indices.size() && CopyTracked::copies==0);
+    }
+    auto range=map.search_values(10,20); auto it=range.begin();
+    const auto* first=&*it; const int id=first->id; ++it;
+    assert(first->id==id); // previous references still refer to map storage
+    std::vector<CopyTracked> owned; map.search_values(10,20,owned);
+    assert(owned.size()==3 && CopyTracked::copies>0);
+    si::IntervalMap<int,CopyTracked> empty;
+    assert(empty.search_values(0,100).begin()==empty.search_values(0,100).end());
+}
+
+template<typename Index>
+void check_branch_rebuilds() {
+    for (int n : {0,1,2,31,32,33,128,257}) for (int pattern=0;pattern<4;++pattern) {
+        Index map;
+        auto check=[&]() {
+            assert(map.branch.size()==map.ends.size());
+            for(size_t i=0;i<map.ends.size();++i) {
+                size_t want=SIZE_MAX;
+                for(size_t j=i;j>0;--j) if(map.ends[j-1]>=map.ends[i]) { want=j-1; break; }
+                assert(map.branch[i]==want);
+            }
+        };
+        for(int i=0;i<n;++i) {
+            int end=pattern==0?i:pattern==1?2*n-i:pattern==2?2*n:i+(i*37%101);
+            map.add(i,end,i);
+        }
+        map.build(); check(); map.add(-1,10000,n); map.build(); check();
+        map.add(-2,-2,n+1); map.build(); check(); map.clear(); map.build(); check();
+    }
+}
+
+void test_branch_rebuilds() {
+    std::cout << "branch rebuilds, ";
+    check_branch_rebuilds<si::IntervalMap<int,int>>();
+    check_branch_rebuilds<si::IntervalMapEytz<int,int>>();
+}
+
 int main() {
     std::cout << "\nSuperIntervals tests\n  ";
     test_basics();
+    test_count_simd_boundaries();
+    test_hybrid_sort();
+    test_borrowed_values();
+    test_branch_rebuilds();
     test_has_overlaps_branching();
     test_iteration();
     test_overlap_queries();
