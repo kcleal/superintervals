@@ -59,21 +59,5 @@ bincode = "1.3.3"
 name = "bed-intersect-si"
 
 [[test]]
-name = "set_ops"
-path = "test/set_ops.rs"
-
-[[test]]
-name = "has_overlaps"
-path = "test/has_overlaps.rs"
-
-[[test]]
-name = "sorting"
-path = "test/sorting.rs"
-
-[[test]]
-name = "counting"
-path = "test/counting.rs"
-
-[[test]]
-name = "iterators"
-path = "test/iterators.rs"
+name = "tests"
+path = "test/tests.rs"
