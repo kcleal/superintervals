@@ -1,0 +1,2 @@
+recursive-include src/superintervals *.pyx
+recursive-include src/superintervals *.pxd
