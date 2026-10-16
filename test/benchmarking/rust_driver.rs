@@ -1,5 +1,5 @@
 use coitrees::{COITree, Interval, IntervalTree};
-use std::{fs, hint::black_box, time::Instant};
+use std::{fs, hint::black_box, ops::ControlFlow, time::Instant};
 use superintervals::IntervalMap;
 fn load(path: &str) -> Vec<(i32,i32)> {
     fs::read_to_string(path).unwrap().lines().map(|line| {
@@ -58,6 +58,33 @@ fn main() {
         assert_eq!(checksum,expected_checksum(&refs,&queries),"streamed payload checksum");
         assert_eq!(stream_hits,hits,"streamed hit total");
         println!("rust-lapper,{build},{find},{hits},{count_time},{count},{stream},{stream_hits}");
+    } else if args[1]=="sif" {
+        // Use half-open ranges, matching the original BED inputs.
+        let now=Instant::now();
+        let tree=sif_itree::ITree::<i32,u32>::new(refs.iter().enumerate()
+            .map(|(i,&(a,b))| (a..b+1,i as u32)));
+        let build=now.elapsed().as_micros();
+        let now=Instant::now(); let mut hits=0usize;
+        for &(a,b) in &queries {
+            let _=tree.query(a..b+1,|(_,id)| {
+                results.push(*id);
+                ControlFlow::<()>::Continue(())
+            });
+            hits+=results.len(); black_box(&results); results.clear();
+        }
+        let find=now.elapsed().as_micros();
+        let now=Instant::now(); let mut stream_hits=0usize; let mut checksum=0u64;
+        for &(a,b) in &queries {
+            let _=tree.query(a..b+1,|(_,id)| {
+                stream_hits+=1; checksum=checksum.wrapping_add(*id as u64);
+                ControlFlow::<()>::Continue(())
+            });
+        }
+        black_box((stream_hits,checksum)); let stream=now.elapsed().as_micros();
+        assert_eq!(checksum,expected_checksum(&refs,&queries),"streamed payload checksum");
+        assert_eq!(stream_hits,hits,"streamed hit total");
+        // No specialised count API; do not substitute callback enumeration.
+        println!("sif-itree,{build},{find},{hits},NA,NA,{stream},{stream_hits}");
     } else {
         assert_eq!(args[1],"coitrees");
         let now=Instant::now();

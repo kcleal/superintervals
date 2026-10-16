@@ -23,10 +23,11 @@ coverage). Counts and window scale with the sampling fraction. Seeds are
 `--seed` and `--seed + 1`.
 
 The runner downloads and verifies the release archive, builds SuperIntervals
-C++/Rust, IITree, IntervalTree, NCLS, COITrees and rust-lapper, then checks results
+C++/Rust, IITree, IntervalTree, NCLS, COITrees, rust-lapper and sif-itree, then checks results
 against independent hit-count and payload-checksum oracles. BED coordinates are
 half-open; inclusive APIs receive end−1. Find fills a reusable vector; stream
-consumes borrowed values without making a list; count uses specialised APIs.
+consumes borrowed values without making a list; count uses specialised APIs. sif-itree uses its serial callback API for Find
+and Stream; Count is unavailable because it has no specialised counting API.
 Compare tools within each operation. Reciprocal directions appear together.
 
 One output folder contains `report.html`, Markdown, embedded timing heatmaps,
@@ -59,7 +60,8 @@ or repository. Failed benchmark jobs leave the last successful page intact.
 Dataset: release v0.2.0 `data.tar.gz`, SHA256
 `c98159506689c412a909505e79576035b42ab50a4930d6c693ef9517756039de`.
 C/C++ and NCLS use tracked sources from `test/3rd-party`; their hashes are
-recorded. Cargo downloads COITrees 0.4.0 and rust-lapper 1.3.0 from crates.io.
+recorded. Cargo downloads COITrees 0.4.0, rust-lapper 1.3.0 and sif-itree 0.4.1
+from crates.io.
 Exact versions and transitive dependency checksums are pinned in the driver
 `Cargo.lock`; builds use `--locked`. No local Rust third-party checkout or
 submodule is required. Resolved package versions and sources are recorded in

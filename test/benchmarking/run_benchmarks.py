@@ -14,6 +14,9 @@ PAIRS=[('mito','DB53.chrM_reads_as_chr1.bed','DB53.chrM_reads_as_chr1.bed'),
  ('DB53-ONT','chr1.DB53.bed','PAO33946.chr1.bed'),
  ('fixed-width',None,None)]
 HERE=Path(__file__).resolve().parent
+RUST_TOOLS=[('si-rust','si'),('coitrees','coitrees'),('rust-lapper','lapper'),('sif-itree','sif')]
+RUST_CRATES=[('Coitrees','coitrees'),('rust-lapper','rust-lapper'),('sif-itree','sif-itree')]
+DISPLAY_TOOLS=['SuperIntervals-rs','SuperIntervals-C++','Coitrees','rust-lapper','sif-itree','ImplicitITree-C++','IntervalTree-C++','NCLS-C']
 
 # Display reciprocal directions together without changing benchmark seeds/order.
 DISPLAY_PAIRS=['DB53-ONT','ONT-DB53','DB53-genes','genes-DB53','rna-anno','anno-rna','mito','fixed-width']
@@ -140,6 +143,7 @@ edition = "2021"
 superintervals = { path = "../source" }
 coitrees = "=0.4.0"
 rust-lapper = "=1.3.0"
+sif-itree = "=0.4.1"
 [profile.release]
 opt-level = 3
 lto = true
@@ -228,16 +232,19 @@ def parse(output):
     for line in output.strip().splitlines():
         cols=line.split(',')
         if len(cols) not in (4,6,8): raise RuntimeError('Unexpected driver output: '+line)
-        tool=cols[0]; vals=list(map(int,cols[1:])); build_us=vals[0]
+        tool=cols[0]; build_us=int(cols[1])
         ops=['find','count','stream'][:(len(cols)-2)//2]
-        for i,op in enumerate(ops): rows.append((tool,op,build_us,vals[1+2*i],vals[2+2*i]))
+        for i,op in enumerate(ops):
+            values=cols[2+2*i:4+2*i]
+            if values==['NA','NA']: continue  # No specialised API for this operation.
+            elapsed,hits=map(int,values)
+            rows.append((tool,op,build_us,elapsed,hits))
     return rows
 
 def run_suite(cpp,rust,ref,query,order,seed,log,timeout,on_tool_done=None):
     jobs=[('iitree',[cpp,ref,query,'iitree']),('intervaltree',[cpp,ref,query,'intervaltree']),
           ('ncls',[cpp,ref,query,'ncls']),('si-cpp',[cpp,ref,query,'si']),
-          ('si-rust',[rust,'si',ref,query]),('coitrees',[rust,'coitrees',ref,query]),
-          ('rust-lapper',[rust,'lapper',ref,query])]
+          *[(name,[rust,mode,ref,query]) for name,mode in RUST_TOOLS]]
     random.Random(seed).shuffle(jobs)
     result=[]
     for name,cmd in jobs:
@@ -268,7 +275,7 @@ def cpu_fields(meta):
 
 def timing_plot(rows, operation):
     selected=[r for r in rows if r['operation']==operation]
-    preferred=['SuperIntervals-rs','SuperIntervals-C++','Coitrees','rust-lapper','ImplicitITree-C++','IntervalTree-C++','NCLS-C']
+    preferred=DISPLAY_TOOLS
     tools=[tool for tool in preferred if any(r['tool']==tool for r in selected)]
     workloads=sorted({(r['dataset'],r['order']) for r in selected},key=workload_key)
     left=180;cell=64;top=100;row_height=38;width=left+cell*len(workloads)+15;height=top+row_height*len(tools)+58
@@ -315,7 +322,7 @@ def tool_versions(repo, src, dependencies, revision='HEAD'):
         result[tool]={'version':version if tool.startswith('SuperIntervals') else None,
                       'source_date':date or None,'sha256':captured_sha,
                       'modified':captured_sha!=committed_sha,'source':source_url}
-    for tool,crate in [('Coitrees','coitrees'),('rust-lapper','rust-lapper')]:
+    for tool,crate in RUST_CRATES:
         entry=dependencies.get(crate,{})
         if entry.get('version'):
             result[tool]={'version':entry['version'],'source_date':None,
@@ -347,9 +354,9 @@ def generate(directory):
     if 'mito_window' in args: info.append(('Mito start window (bp)',args['mito_window'] or 'whole chromosome'))
     if meta.get('archive_sha256'): info.append(('Archive SHA256',meta['archive_sha256']))
     if meta.get('error'): info.append(('Error',meta['error']))
-    note='Times are medians in µs, excluding file I/O. Find stores payloads; count returns a total; stream consumes payloads into a checksum.'
+    note='Times are medians in µs, excluding file I/O. Find stores payloads; count returns a total; stream consumes payloads into a checksum. A dash means no specialised API is available.'
     if meta['status']!='complete': note+=' Incomplete run: available results are partial.'
-    preferred=['SuperIntervals-rs','SuperIntervals-C++','Coitrees','rust-lapper','ImplicitITree-C++','IntervalTree-C++','NCLS-C']
+    preferred=DISPLAY_TOOLS
     workloads=sorted({(r['dataset'],r['order']) for r in rows},key=workload_key)
     lookup={(r['dataset'],r['order'],r['tool'],r['operation']):r for r in rows}
     def table(headers, values):
@@ -391,8 +398,8 @@ def generate(directory):
     version_rows=[]; version_md=[]
     for tool in preferred:
         entry=provenance.get(tool,{})
-        if not entry and tool in ('Coitrees','rust-lapper'):
-            entry=meta.get('dependencies',{}).get('coitrees' if tool=='Coitrees' else 'rust-lapper',{})
+        if not entry and tool in dict(RUST_CRATES):
+            entry=meta.get('dependencies',{}).get(dict(RUST_CRATES)[tool],{})
         label=entry.get('version') or (f"Git source date: {entry['source_date']}" if entry.get('source_date') else 'Not recorded')
         if entry.get('modified'): label+=' (modified snapshot)'
         source=entry.get('source','')
@@ -499,7 +506,7 @@ def main():
             stage=time.perf_counter()
             cpp,rust=build(src,out,log)
             resolved=json.loads((out/'cargo-metadata.json').read_text())
-            meta['dependencies']={p['name']:{'version':p['version'],'source':p['source']} for p in resolved['packages'] if p['name'] in ('coitrees','rust-lapper')}
+            meta['dependencies']={p['name']:{'version':p['version'],'source':p['source']} for p in resolved['packages'] if p['name'] in dict(RUST_CRATES).values()}
             meta['tool_versions']=tool_versions(repo,src,meta['dependencies'],initial_commit)
             meta['build_seconds']=round(time.perf_counter()-stage,3)
             stage=time.perf_counter()
@@ -520,7 +527,7 @@ def main():
             meta['fixture_expected_hits']=expected; meta['fixture_passed']=True
             rows=[]; cache={}
             selected_pairs=[pair for pair in PAIRS if not a.pairs or pair[0] in a.pairs]
-            progress_total=len(selected_pairs)*2*(a.warmups+a.repeats)*7
+            progress_total=len(selected_pairs)*2*(a.warmups+a.repeats)*(4+len(RUST_TOOLS))
             progress_done=0
             print(f'Total progress: 0/{progress_total} tool processes completed (0.0%; includes warmups, excludes setup and boundary fixture)',flush=True)
             meta['sampling']={}

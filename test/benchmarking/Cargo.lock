@@ -50,6 +50,7 @@ version = "0.1.0"
 dependencies = [
  "coitrees",
  "rust-lapper",
+ "sif-itree",
  "superintervals",
 ]
 
@@ -118,6 +119,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "sif-itree"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7f45b8998ced5134fb1d75732c77842a3e888f19c1ff98481822e8fbfbf930b"
 
 [[package]]
 name = "superintervals"
