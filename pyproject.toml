@@ -10,7 +10,6 @@ build-backend = "setuptools.build_meta"
 name = "superintervals"
 version = "1.0.3"
 description = "Rapid interval intersections"
-dependencies = ['Cython']
 authors = [{name = "Kez Cleal", email = "clealk@cardiff.ac.uk"}]
 
 [tool.cibuildwheel]
